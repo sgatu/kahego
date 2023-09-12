@@ -2,7 +2,7 @@
     "streams": [
         {
             "id": "kafka01",
-            "t":"kafka",
+            "type":"kafka",
             "slice": 1.0,
             "settings": {
                 "host": "127.0.0.1",
@@ -11,7 +11,7 @@
         },
         {
             "id": "kafkadev",
-            "t": "kafka",
+            "type": "kafka",
             "slice": 0.1,
             "settings": {
                 "host":"127.0.0.1",
@@ -30,7 +30,7 @@
                 {
                     "id":"kafkadev", 
                     "key":"dev_topic1"
-                } 
+                }
             ],
             "batch": 1000,
             "batchTimeout": 30000

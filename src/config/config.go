@@ -1,24 +1,51 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
-	"github.com/spf13/viper"
 )
 
 type Config struct {
 	bucketsFile string
 	socketPath  string
 }
+
+type bucketsConfig struct {
+	Streams []struct {
+		ID       string            `json:"id"`
+		Type     string            `json:"type"`
+		Slice    float32           `json:"slice"`
+		Settings map[string]string `json:"settings"`
+	} `json:"streams"`
+	Buckets []struct {
+		Id      string `json:"id"`
+		Streams []struct {
+			Id  string
+			Key string
+		} `json:"streams"`
+		Batch        int `json:"batch"`
+		BatchTimeout int `json:"batchTimeout"`
+	}
+}
 type StreamConfig struct {
-	id       string            `mapstructure:"id"`
-	t        string            `mapstructure:"t"`
-	slice    float32           `mapstructure:"slice"`
-	settings map[string]string `mapstructure:"settings"`
+	Type     string
+	Slice    float32
+	Settings map[string]string
 }
 type BucketConfig struct {
+	Streams []struct {
+		Id  string
+		Key string
+	}
+	Batch        int
+	BatchTimeout int
+}
+type MappedConfig struct {
+	streams map[string]StreamConfig
+	buckets map[string]BucketConfig
 }
 
 func getConfig(expected string, _default string) string {
@@ -43,13 +70,24 @@ func LoadConfig() (Config, error) {
 		socketPath:  socketFile,
 	}, nil
 }
-func LoadBucketsConfig(config Config) []StreamConfig {
-	fmt.Println("Loading", config.bucketsFile)
-	v := viper.New()
-	v.SetConfigFile(config.bucketsFile)
-	v.SetConfigType("json")
-	fmt.Printf("%v", v.ReadInConfig())
-	var streamsInfo []StreamConfig
-	fmt.Printf("Unmarshal...%+v\n", v.UnmarshalKey("streams", &streamsInfo))
-	return streamsInfo
+func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
+
+	fmt.Println("Loading", envConfig.bucketsFile)
+	var bucketsConfig bucketsConfig
+	var mappedConfig MappedConfig
+	configFile, err := os.Open(envConfig.bucketsFile)
+	if err != nil {
+		return mappedConfig, fmt.Errorf("could not read buckets config file at %s", envConfig.bucketsFile)
+	}
+	mappedConfig = MappedConfig{streams: make(map[string]StreamConfig), buckets: make(map[string]BucketConfig)}
+	defer configFile.Close()
+	jsonParser := json.NewDecoder(configFile)
+	jsonParser.Decode(&bucketsConfig)
+	for _, stream := range bucketsConfig.Streams {
+		mappedConfig.streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings}
+	}
+	for _, bucket := range bucketsConfig.Buckets {
+		mappedConfig.buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
+	}
+	return mappedConfig, nil
 }

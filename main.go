@@ -15,7 +15,11 @@ func main() {
 		fmt.Println("Environment file missing or could not be loaded.\nAn environment variable \"environment\" MUST be defined and file .env.{environment}.local must exist.\nBy default {environment} is dev.")
 		os.Exit(1)
 	}
-	fmt.Printf("%v", config.LoadBucketsConfig(envConfig))
+	bucketsConfig, err := config.LoadBucketsConfig(envConfig)
+	if err == nil {
+		fmt.Printf("%#v", bucketsConfig)
+	}
+
 	//stream.GetStream(nil)
 
 	// fmt.Println("Will connect to", fmt.Sprintf("%s:%s", os.Getenv("KAFKA_HOST"), os.Getenv("KAFKA_PORT")))

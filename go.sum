@@ -1,2 +1,6 @@
+github.com/gammazero/deque v0.2.1 h1:qSdsbG6pgp6nL7A0+K/B7s12mcCY/5l5SIUpMOl+dC0=
+github.com/gammazero/deque v0.2.1/go.mod h1:LFroj8x4cMYCukHJDbxFCkT+r9AndaJnFMuZDV34tuU=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/vladopajic/go-actor v1.0.5 h1:RPPeTbB+uXS6qnfUE2g1cTJdRdV9FXHVgW8tJBtVSvk=
+github.com/vladopajic/go-actor v1.0.5/go.mod h1:0SPOVxbQBC0MkWcC1Nd/qREGy4ypFcgns49OhValZJM=

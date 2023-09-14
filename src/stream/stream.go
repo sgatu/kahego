@@ -2,6 +2,8 @@ package stream
 
 import (
 	"fmt"
+
+	"sgatu.com/kahego/src/config"
 )
 
 type Bucket struct {
@@ -18,12 +20,12 @@ func (stream *KafkaStream) push() error {
 	return nil
 }
 
-func getKafkaStream(m map[string]any) *KafkaStream {
+func getKafkaStream(streamConfig config.StreamConfig) *KafkaStream {
 	return &KafkaStream{}
 }
-func GetStream(m map[string]interface{}) (Stream, error) {
-	if m["type"] == "kafka" {
-		return getKafkaStream(m), nil
+func GetStream(streamConfig config.StreamConfig) (Stream, error) {
+	if streamConfig.Type == "kafka" {
+		return getKafkaStream(streamConfig), nil
 	}
-	return nil, fmt.Errorf("invalid stream type %s or not implemented", m["type"])
+	return nil, fmt.Errorf("invalid stream type %s or not implemented", streamConfig.Type)
 }

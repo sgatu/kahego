@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	bucketsFile string
-	socketPath  string
+	BucketsFile string
+	SocketPath  string
 }
 
 type bucketsConfig struct {
@@ -66,18 +66,18 @@ func LoadConfig() (Config, error) {
 	bucketsFile := getConfig(os.Getenv("BUCKETS_FILE"), "./buckets.json")
 	socketFile := getConfig(os.Getenv("SOCKET"), "/tmp/kahego.sock")
 	return Config{
-		bucketsFile: bucketsFile,
-		socketPath:  socketFile,
+		BucketsFile: bucketsFile,
+		SocketPath:  socketFile,
 	}, nil
 }
 func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
 
-	fmt.Println("Loading", envConfig.bucketsFile)
+	fmt.Println("Loading buckets file located at", envConfig.BucketsFile)
 	var bucketsConfig bucketsConfig
 	var mappedConfig MappedConfig
-	configFile, err := os.Open(envConfig.bucketsFile)
+	configFile, err := os.Open(envConfig.BucketsFile)
 	if err != nil {
-		return mappedConfig, fmt.Errorf("could not read buckets config file at %s", envConfig.bucketsFile)
+		return mappedConfig, fmt.Errorf("could not read buckets config file at %s", envConfig.BucketsFile)
 	}
 	mappedConfig = MappedConfig{streams: make(map[string]StreamConfig), buckets: make(map[string]BucketConfig)}
 	defer configFile.Close()

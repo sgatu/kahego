@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"sgatu.com/kahego/src/actors"
@@ -25,16 +26,16 @@ func main() {
 		fmt.Printf("%#v", bucketsConfig)
 
 	}
-	stoppedAndCleanedUp := make(chan struct{})
-	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, StopAndCleanedUp: stoppedAndCleanedUp}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, WaitGroup: wg}
 	actors.InitializeAndStart(&listener)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-done
-		actors.Tell(&listener, actors.PoisonPill{})
-	}()
-	<-stoppedAndCleanedUp
-	os.Exit(0)
+	<-done
+	{
+		listener.Stop()
+	}
+	wg.Wait()
 }

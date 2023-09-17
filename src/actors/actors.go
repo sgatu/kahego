@@ -1,13 +1,26 @@
 package actors
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type Actor interface {
+	DoWork(message interface{}) (WorkResult, error)
+	GetChannel() chan interface{}
+}
+type SupervisedActor interface {
+	GetSupervisor() Actor
+}
+type InitializableActor interface {
 	OnStart() error
 	OnStop() error
-	DoWork(message interface{}) (WorkResult, error)
-	GetSupervisor() Actor
-	GetChannel() chan interface{}
+}
+type WaitableActor interface {
+	GetWaitGroup() *sync.WaitGroup
+}
+type InterrumpableActor interface {
+	Stop()
 }
 type WorkResult int
 
@@ -22,39 +35,42 @@ type IllChildMessage struct {
 
 func InitializeAndStart(actor Actor) {
 	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
-	err := actor.OnStart()
-	if err != nil {
-		fmt.Println("Could not start actor due to", err)
-		return
+	if ia, ok := actor.(InitializableActor); ok {
+		err := ia.OnStart()
+		if err != nil {
+			fmt.Println("Could not start actor due to", err)
+		}
 	}
 	go func() {
+		if wga, ok := actor.(WaitableActor); ok {
+			if wga.GetWaitGroup() != nil {
+				defer wga.GetWaitGroup().Done()
+			}
+		}
 		for {
 			message := <-actor.GetChannel()
-			stopActor := false
-			switch message.(type) {
-			case PoisonPill:
-				stopActor = true
-			default:
-				result, err := actor.DoWork(message)
-				if result == Stop || err != nil {
-					stopActor = true
-				}
-				if err != nil && actor.GetSupervisor() != nil {
-					Tell(actor.GetSupervisor(), IllChildMessage{who: actor})
-				}
-			}
-			if stopActor {
+			result, err := actor.DoWork(message)
+			if result == Stop || err != nil {
 				break
 			}
-
+			if err != nil {
+				if sa, ok := actor.(SupervisedActor); ok {
+					Tell(sa.GetSupervisor(), IllChildMessage{who: actor})
+				}
+			}
 		}
-		actor.OnStop()
+		if ia, ok := actor.(InitializableActor); ok {
+			err := ia.OnStop()
+			if err != nil {
+				fmt.Println("Could not cleanup actor", fmt.Sprintf("%T", actor), "due to", err)
+				return
+			}
+		}
 		close(actor.GetChannel())
 	}()
 }
 
 func Tell(actor Actor, message interface{}) {
-
 	go func() {
 		actor.GetChannel() <- message
 	}()

@@ -26,8 +26,8 @@ type bucketsConfig struct {
 			Id  string
 			Key string
 		} `json:"streams"`
-		Batch        int `json:"batch"`
-		BatchTimeout int `json:"batchTimeout"`
+		Batch        int32 `json:"batch"`
+		BatchTimeout int32 `json:"batchTimeout"`
 	}
 }
 type StreamConfig struct {
@@ -40,12 +40,12 @@ type BucketConfig struct {
 		Id  string
 		Key string
 	}
-	Batch        int
-	BatchTimeout int
+	Batch        int32
+	BatchTimeout int32
 }
 type MappedConfig struct {
-	streams map[string]StreamConfig
-	buckets map[string]BucketConfig
+	Streams map[string]StreamConfig
+	Buckets map[string]BucketConfig
 }
 
 func getConfig(expected string, _default string) string {
@@ -79,15 +79,15 @@ func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
 	if err != nil {
 		return mappedConfig, fmt.Errorf("could not read buckets config file at %s", envConfig.BucketsFile)
 	}
-	mappedConfig = MappedConfig{streams: make(map[string]StreamConfig), buckets: make(map[string]BucketConfig)}
+	mappedConfig = MappedConfig{Streams: make(map[string]StreamConfig), Buckets: make(map[string]BucketConfig)}
 	defer configFile.Close()
 	jsonParser := json.NewDecoder(configFile)
 	jsonParser.Decode(&bucketsConfig)
 	for _, stream := range bucketsConfig.Streams {
-		mappedConfig.streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings}
+		mappedConfig.Streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings}
 	}
 	for _, bucket := range bucketsConfig.Buckets {
-		mappedConfig.buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
+		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
 	}
 	return mappedConfig, nil
 }

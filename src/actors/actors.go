@@ -3,6 +3,7 @@ package actors
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 type Actor interface {
@@ -72,6 +73,12 @@ func InitializeAndStart(actor Actor) {
 
 func Tell(actor Actor, message interface{}) {
 	go func() {
+		actor.GetChannel() <- message
+	}()
+}
+func TellIn(actor Actor, message interface{}, wait time.Duration) {
+	go func() {
+		<-time.After(wait)
 		actor.GetChannel() <- message
 	}()
 }

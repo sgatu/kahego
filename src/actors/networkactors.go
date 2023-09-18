@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"sgatu.com/kahego/src/stream"
 )
 
 type ClientHandleNextMessage struct{}
@@ -50,7 +52,7 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 			msg = append(msg, buffer[:len]...)
 		}
 		go func(msg []byte) {
-			message, err := GetMessage(msg)
+			message, err := stream.GetMessage(msg)
 			if err == nil {
 				fmt.Printf("%+v\n", message)
 			} else {

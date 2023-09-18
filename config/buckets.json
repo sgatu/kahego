@@ -1,21 +1,12 @@
 {
     "streams": [
         {
-            "id": "kafka01",
-            "type":"kafka",
+            "id": "file01",
+            "type":"file",
             "slice": 1.0,
             "settings": {
-                "host": "127.0.0.1",
-                "port": "9092"
-            }
-        },
-        {
-            "id": "kafkadev",
-            "type": "kafka",
-            "slice": 0.1,
-            "settings": {
-                "host":"127.0.0.1",
-                "port":"9094"
+                "path": "/tmp/",
+                "sizeRotate": 500000
             }
         }
     ],
@@ -24,12 +15,8 @@
             "id": "b01",
             "streams": [ 
                 {
-                    "id":"kafka01", 
+                    "id":"file01", 
                     "key":"topic1"
-                }, 
-                {
-                    "id":"kafkadev", 
-                    "key":"dev_topic1"
                 }
             ],
             "batch": 1000,

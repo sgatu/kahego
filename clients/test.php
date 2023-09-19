@@ -9,7 +9,7 @@ function makeMessage($bucket, $message, $messageKey = null)
     return chr(strlen($bucket)) . $bucket . chr(strlen($messageKey ?? "")) . $messageKey . $message;
 }
 
-$msg = makeMessage("bucketName", "messageToBeSent");
+$msg = makeMessage("b01", "messageToBeSent");
 for ($i = 0; $i < 5000; $i++) {
     fwrite($sock, pack("V", strlen($msg)) . $msg);
 }

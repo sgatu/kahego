@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -23,70 +24,59 @@ func main() {
 		fmt.Println("Socket file at", envConfig.SocketPath, "already exists. Check if not another process is already running, if so close it else try to delete it.")
 		os.Exit(1)
 	}
+	envConfig.BucketsFile = ""
 	bucketsConfig, err := config.LoadBucketsConfig(envConfig)
-	if err != nil {
-		fmt.Printf("%#v", bucketsConfig)
+	if err == nil {
+		fmt.Println("Loaded buckets and streams config:")
+		cfgJson, err := json.MarshalIndent(bucketsConfig, "", " ")
+		if err == nil {
+			fmt.Println(string(cfgJson))
+		}
+	} else {
+		fmt.Println("Could not load buckets and streams config due to err ->", err)
+		os.Exit(1)
 	}
-	/*
-		//queue testing
-		queue := datastructures.NewQueue[stream.Message]()
-		for i := 0; i < 50; i++ {
-			queue.Push(&datastructures.Node[stream.Message]{
-				Value: stream.Message{
-					Data:   make([]byte, 0),
-					Bucket: "mybucket",
-					Key:    fmt.Sprintf("msg_key_%d", i),
-				},
-			})
-		}
-		fmt.Println(queue.Len())
-		len := queue.Len()
-		for i := 1; i < int(len)+1; i++ {
-			elem, err := queue.Pop()
-			if err != nil {
-				fmt.Println("loop", err)
-				break
-			}
-			fmt.Printf("%v\n", elem.Value.Key)
-			if i%5 == 0 {
-				queue.Push(&datastructures.Node[stream.Message]{
-					Value: stream.Message{
-						Data:   make([]byte, 0),
-						Bucket: "mybucket",
-						Key:    fmt.Sprintf("msg_key_%d", i),
-					},
-				})
-				fmt.Printf("Len: %d\n", queue.Len())
-			}
-		}
-		elem, err := queue.Pop()
-		if err != nil {
-			fmt.Println("out of loop", err)
-		} else {
-			fmt.Printf("%+v --- %d\n", elem.Value.Key, queue.Len())
-		}
-		os.Exit(0)*/
-	dataActors := make(map[string]actors.DataActor)
+	wgDataActors := &sync.WaitGroup{}
+	dataActors := make(map[string]actors.Actor)
 	for id, streamCfg := range bucketsConfig.Streams {
 		strm, err := stream.GetStream(streamCfg)
-		if err != nil {
-			dataActor := actors.DataActor{Stream: strm}
-			dataActors[id] = dataActor
+		if err == nil {
+			wgDataActors.Add(1)
+			dataActor := actors.DataActor{Stream: strm, WaitGroup: wgDataActors}
+			dataActors[id] = &dataActor
+			actors.InitializeAndStart(&dataActor)
+		} else {
+			fmt.Println("Could not initialize dataActor due to", err)
 		}
 	}
+	bucketActors := make(map[string]actors.Actor)
 	for id, bucketCfg := range bucketsConfig.Buckets {
-		bucket := stream.Bucket{Streams: make(map[string]stream.Stream), Id: id, Batch: bucketCfg.Batch}
+		bucketActor := actors.BucketActor{
+			StreamActors: make([]actors.Actor, 0, len(bucketCfg.Streams)),
+			Batch:        bucketCfg.Batch,
+			BatchTimeout: bucketCfg.BatchTimeout,
+		}
+		for _, streamInfo := range bucketCfg.Streams {
+			bucketActor.StreamActors = append(bucketActor.StreamActors, dataActors[streamInfo])
+		}
+		bucketActors[id] = &bucketActor
+		actors.InitializeAndStart(&bucketActor)
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, WaitGroup: wg}
+	wgListener := &sync.WaitGroup{}
+	wgListener.Add(1)
+
+	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, WaitGroup: wgListener, BucketActors: bucketActors}
 	actors.InitializeAndStart(&listener)
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	<-done
 	{
+		for _, da := range dataActors {
+			actors.Tell(da, actors.PoisonPill{})
+		}
 		listener.Stop()
 	}
-	wg.Wait()
+	wgListener.Wait()
+	wgDataActors.Wait()
 }

@@ -19,6 +19,7 @@ type ClientHandlerActor struct {
 	waitGroup      *sync.WaitGroup
 	clientFinished chan int
 	clientId       int
+	bucketActors   map[string]Actor
 }
 
 func (cha *ClientHandlerActor) GetChannel() chan interface{} {
@@ -54,7 +55,9 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 		go func(msg []byte) {
 			message, err := stream.GetMessage(msg)
 			if err == nil {
-				fmt.Printf("%+v\n", message)
+				if actor, ok := cha.bucketActors[message.Bucket]; ok {
+					Tell(actor, message)
+				}
 			} else {
 				fmt.Println(err)
 			}
@@ -71,9 +74,9 @@ func (cha *ClientHandlerActor) OnStart() error {
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
-	fmt.Println("Shutting down client", cha.clientId)
+	//fmt.Println("Shutting down client", cha.clientId)
 	<-time.After(time.Second * 2)
-	fmt.Println("Client shutted down", cha.clientId)
+	//fmt.Println("Client shutted down", cha.clientId)
 	cha.clientFinished <- cha.clientId
 	cha.waitGroup.Done()
 	return nil
@@ -92,6 +95,7 @@ type AcceptClientActor struct {
 	clients            map[int]ClientHandlerActor
 	clientsWG          *sync.WaitGroup
 	clientFinishedChan chan int
+	BucketActors       map[string]Actor
 }
 
 func (aca *AcceptClientActor) OnStart() error {
@@ -110,10 +114,10 @@ func (aca *AcceptClientActor) OnStart() error {
 	go func() {
 		for {
 			i, more := <-aca.clientFinishedChan
-			fmt.Println("Cleaning disconnected client", i)
+			//fmt.Println("Cleaning disconnected client", i)
 			delete(aca.clients, i)
 			if !more {
-				fmt.Println("Closing finished channel")
+				//fmt.Println("Closing finished channel")
 				break
 			}
 		}
@@ -158,6 +162,7 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 				waitGroup:      aca.clientsWG,
 				clientId:       aca.clientIdCounter,
 				clientFinished: aca.clientFinishedChan,
+				bucketActors:   aca.BucketActors,
 			}
 			aca.clientsWG.Add(1)
 			aca.clients[aca.clientIdCounter] = handler

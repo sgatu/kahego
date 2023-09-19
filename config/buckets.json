@@ -1,24 +1,21 @@
 {
     "streams": [
         {
-            "id": "file01",
+            "id": "f01",
             "type":"file",
             "slice": 1.0,
+            "key": "topic_name",
             "settings": {
                 "path": "/tmp/",
-                "sizeRotate": 500000
-            }
+                "sizeRotate": "500000"
+            },
+            "backup": null
         }
     ],
     "buckets": [
         {
             "id": "b01",
-            "streams": [ 
-                {
-                    "id":"file01", 
-                    "key":"topic1"
-                }
-            ],
+            "streams": [ "f01" ],
             "batch": 1000,
             "batchTimeout": 30000
         }

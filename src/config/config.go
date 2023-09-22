@@ -20,6 +20,7 @@ type bucketsConfig struct {
 		Slice    float32           `json:"slice"`
 		Key      string            `json:"key"`
 		Settings map[string]string `json:"settings"`
+		Backup   *string           `json:"backup"`
 	} `json:"streams"`
 	Buckets []struct {
 		Id           string   `json:"id"`
@@ -33,6 +34,7 @@ type StreamConfig struct {
 	Key      string
 	Slice    float32
 	Settings map[string]string
+	Backup   *string
 }
 type BucketConfig struct {
 	Streams      []string
@@ -80,7 +82,7 @@ func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
 	jsonParser := json.NewDecoder(configFile)
 	jsonParser.Decode(&bucketsConfig)
 	for _, stream := range bucketsConfig.Streams {
-		mappedConfig.Streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings, Key: stream.Key}
+		mappedConfig.Streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings, Key: stream.Key, Backup: stream.Backup}
 	}
 	for _, bucket := range bucketsConfig.Buckets {
 		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}

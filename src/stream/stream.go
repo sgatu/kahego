@@ -18,6 +18,14 @@ type Message struct {
 	Key    string
 	Data   []byte
 }
+type PersistMessage struct {
+	Message *Message
+	Stream  string
+}
+type MessageError struct {
+	Key  string
+	Data []byte
+}
 
 func GetMessage(msg []byte) (*Message, error) {
 	if len(msg) < 1 {
@@ -57,21 +65,19 @@ func (msg *Message) Serialize() []byte {
 }
 
 type Stream interface {
+	Init() error
+	InBackupMode() bool
 	Push(msg *Message) error
 	Len() uint32
 	Flush() error
 	Close() error
-}
-type BackedUpStream interface {
-	PushBackup(msg *Message) error
-	getBackupStream() Stream
 }
 type KafkaStream struct {
 	kafkaConn    *kafka.Producer
 	kafkaConfig  *kafka.ConfigMap
 	topic        string
 	deliveryChan chan kafka.Event
-	backup       Stream
+	inBackupMode bool
 }
 
 func (stream *KafkaStream) Push(msg *Message) error {
@@ -94,22 +100,65 @@ func (stream *KafkaStream) Flush() error {
 func (stream *KafkaStream) Len() uint32 {
 	return uint32(stream.kafkaConn.Len())
 }
+func (stream *KafkaStream) InBackupMode() bool {
+	return stream.inBackupMode
+}
 func (stream *KafkaStream) Close() error {
 	for {
 		pending := stream.kafkaConn.Flush(300)
 		if pending == 0 {
 			stream.kafkaConn.Close()
 		}
+		close(stream.deliveryChan)
 	}
 }
-func (stream *KafkaStream) PushBackup(msg *Message) error {
-	if stream.getBackupStream() != nil {
-		return stream.getBackupStream().Push(msg)
+
+func (stream *KafkaStream) deliveryManagement() {
+	stream.inBackupMode = false
+	for {
+		ev, more := <-stream.deliveryChan
+		if !more {
+			return
+		}
+		m, ok := ev.(*kafka.Message)
+		if ok && m.TopicPartition.Error != nil {
+			fmt.Println("Could not write to kafka, switching to backup if any configured")
+			stream.inBackupMode = true
+			stream.kafkaConn.Close()
+			go stream.waitForConnection()
+			return
+		}
+	}
+}
+func (stream *KafkaStream) initProducer() bool {
+	kafkaConn, err := kafka.NewProducer(stream.kafkaConfig)
+	if err != nil {
+		return false
+	}
+	stream.kafkaConn = kafkaConn
+	return true
+}
+func (stream *KafkaStream) waitForConnection() {
+	stream.inBackupMode = true
+	for {
+		if stream.initProducer() {
+			go stream.deliveryManagement()
+			return
+		}
+		//check connection every 5 seconds
+		<-time.After(5000 * time.Second)
+	}
+}
+func (stream *KafkaStream) Init() error {
+	stream.deliveryChan = make(chan kafka.Event, 10000)
+	if stream.initProducer() {
+
+		go stream.deliveryManagement()
+	} else {
+		stream.inBackupMode = true
+		go stream.waitForConnection()
 	}
 	return nil
-}
-func (stream *KafkaStream) getBackupStream() Stream {
-	return stream.backup
 }
 
 /*
@@ -122,6 +171,8 @@ type FileStream struct {
 	queue        datastructures.Queue[*Message]
 	writtenBytes int32
 	rotateLength int32
+	hasBackup    bool
+	inBackupMode bool
 }
 
 func (stream *FileStream) Push(msg *Message) error {
@@ -138,6 +189,10 @@ func (stream *FileStream) rotateFile() error {
 		fullPath := stream.path + stream.fileName + "-" + fmt.Sprintf("%d", time.Now().Unix())
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
+			if stream.hasBackup {
+				stream.inBackupMode = true
+				return nil
+			}
 			return err
 		}
 		stream.file = file
@@ -175,11 +230,27 @@ func (stream *FileStream) Close() error {
 	}
 	return nil
 }
+func (stream *FileStream) Init() error {
+	stream.inBackupMode = false
+	err := stream.rotateFile()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+/*
+Factory methods
+*/
 func getKafkaStream(streamConfig config.StreamConfig) (*KafkaStream, error) {
-	
-	kafkaConfigEntries := kafka.StringMapToConfigEntries(streamConfig.Settings, kafka.AlterOperationSet)
-	kafkaConfigMap := kafka.
-	return &KafkaStream{}, nil
+
+	configsParsed := kafka.StringMapToConfigEntries(streamConfig.Settings, kafka.AlterOperationSet)
+	cfgMap := kafka.ConfigMap{}
+	for _, cfg := range configsParsed {
+		cfgMap.SetKey(cfg.Name, cfg.Value)
+	}
+	stream := KafkaStream{kafkaConfig: &cfgMap, topic: streamConfig.Key}
+	return &stream, nil
 }
 func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 	path, ok := streamConfig.Settings["path"]
@@ -187,7 +258,7 @@ func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 		return nil, errors.New("no path defined for fileStream")
 	}
 	rotateLengthStr, ok := streamConfig.Settings["sizeRotate"]
-	var rotateLength int32 = 1000000
+	var rotateLength int32 = 1024 * 1024 * 100 //100 MB default file size
 	if ok {
 		fmt.Println("Found sizeRotate in config", rotateLengthStr)
 		i, err := strconv.ParseInt(rotateLengthStr, 10, 32)
@@ -204,16 +275,29 @@ func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 		writtenBytes: 0,
 		rotateLength: rotateLength,
 		fileName:     streamConfig.Key,
+		hasBackup:    streamConfig.Backup != nil,
 	}
 	return fs, nil
 }
-func GetStream(streamConfig config.StreamConfig) (Stream, error) {
+func (stream *FileStream) InBackupMode() bool {
+	return stream.inBackupMode
+}
+func GetStream(streamConfig config.StreamConfig, backupChannel chan interface{}) (Stream, error) {
+	var strm Stream
+	var err error
 	switch streamConfig.Type {
 	case "kafka":
-		return getKafkaStream(streamConfig)
+		strm, err = getKafkaStream(streamConfig)
 	case "file":
-		return getFileStream(streamConfig)
+		strm, err = getFileStream(streamConfig)
 	default:
 		return nil, fmt.Errorf("invalid stream type %s or not implemented", streamConfig.Type)
 	}
+	if err == nil {
+		err := strm.Init()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return strm, err
 }

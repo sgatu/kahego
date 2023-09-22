@@ -6,10 +6,20 @@
             "slice": 1.0,
             "key": "topic_name",
             "settings": {
-                "path": "/tmp/",
+                "path": "/tmp/puto/",
                 "sizeRotate": "500000"
             },
-            "backup": null
+            "backup": "fbackup"
+        },
+        {
+            "id": "fbackup",
+            "type":"file",
+            "slice": 1.0,
+            "key": "topic_name",
+            "settings": {
+                "path":"/home/bacon/",
+                "sizeRotate":"500000"
+            }
         }
     ],
     "buckets": [

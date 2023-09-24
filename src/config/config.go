@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -68,14 +69,32 @@ func LoadConfig() (Config, error) {
 		SocketPath:  socketFile,
 	}, nil
 }
-func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
+func validateBucketsConfig(cfg MappedConfig) error {
+	for k, stream := range cfg.Streams {
+		if stream.Backup != nil {
+			if *stream.Backup == k {
+				return errors.New("backup on stream could not reference itself")
+			}
+			if refStream, ok := cfg.Streams[*stream.Backup]; ok {
+				if refStream.Backup != nil {
+					return fmt.Errorf("referenced backup stream %s cannot be backuped, only non backuped streams can be used as backup", *stream.Backup)
+				}
+			} else {
+				return fmt.Errorf("referenced backup stream with id %s not defined", *stream.Backup)
+			}
+		}
+
+	}
+	return nil
+}
+func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 
 	fmt.Println("Loading buckets file located at", envConfig.BucketsFile)
 	var bucketsConfig bucketsConfig
 	var mappedConfig MappedConfig
 	configFile, err := os.Open(envConfig.BucketsFile)
 	if err != nil {
-		return mappedConfig, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
+		return &mappedConfig, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
 	}
 	mappedConfig = MappedConfig{Streams: make(map[string]StreamConfig), Buckets: make(map[string]BucketConfig)}
 	defer configFile.Close()
@@ -87,5 +106,9 @@ func LoadBucketsConfig(envConfig Config) (MappedConfig, error) {
 	for _, bucket := range bucketsConfig.Buckets {
 		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
 	}
-	return mappedConfig, nil
+	validate_err := validateBucketsConfig(mappedConfig)
+	if validate_err != nil {
+		return nil, validate_err
+	}
+	return &mappedConfig, nil
 }

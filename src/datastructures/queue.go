@@ -39,3 +39,9 @@ func (queue *Queue[T]) Pop() (*Node[T], error) {
 func (queue *Queue[T]) Len() uint32 {
 	return queue.len
 }
+
+func (queue *Queue[T]) Clear() {
+	for i := 0; i < int(queue.Len()); i++ {
+		queue.Pop()
+	}
+}

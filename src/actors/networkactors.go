@@ -84,18 +84,21 @@ func (cha *ClientHandlerActor) OnStop() error {
 func (cha *ClientHandlerActor) Stop() {
 	cha.client.Close()
 }
+func (cha *ClientHandlerActor) GetWorkMethod() DoWorkMethod {
+	return cha.DoWork
+}
 
 type AcceptClientActor struct {
-	recv               chan interface{}
+	BucketActors       map[string]Actor
 	SocketPath         string
+	WaitGroup          *sync.WaitGroup
+	recv               chan interface{}
 	socket             *net.UnixListener
 	isChannelClosed    bool
-	WaitGroup          *sync.WaitGroup
 	clientIdCounter    int
 	clients            map[int]ClientHandlerActor
 	clientsWG          *sync.WaitGroup
 	clientFinishedChan chan int
-	BucketActors       map[string]Actor
 }
 
 func (aca *AcceptClientActor) OnStart() error {
@@ -178,4 +181,7 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 		return Continue, nil
 	}
 
+}
+func (aca *AcceptClientActor) GetWorkMethod() DoWorkMethod {
+	return aca.DoWork
 }

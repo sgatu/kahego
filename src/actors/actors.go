@@ -17,9 +17,9 @@ type IllChildMessage struct {
 	who Actor
 	id  string
 }
-
+type DoWorkMethod func(msg interface{}) (WorkResult, error)
 type Actor interface {
-	DoWork(message interface{}) (WorkResult, error)
+	GetWorkMethod() DoWorkMethod
 	GetChannel() chan interface{}
 }
 type SupervisedActor interface {
@@ -55,7 +55,7 @@ func InitializeAndStart(actor Actor) {
 		}
 		for {
 			message := <-actor.GetChannel()
-			result, err := actor.DoWork(message)
+			result, err := actor.GetWorkMethod()(message)
 			if result == Stop || err != nil {
 				break
 			}

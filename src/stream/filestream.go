@@ -21,6 +21,7 @@ type FileStream struct {
 	queue        datastructures.Queue[*Message]
 	writtenBytes int32
 	rotateLength int32
+	slice        float32
 	hasError     bool
 	lastErr      error
 }
@@ -99,6 +100,16 @@ func (stream *FileStream) Init() error {
 func (stream *FileStream) HasError() bool {
 	return stream.hasError
 }
+func (stream *FileStream) GetError() error {
+	return stream.lastErr
+}
+func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
+	return &stream.queue
+}
+func (stream *FileStream) GetSlice() float32 {
+	return stream.slice
+}
+
 func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 	path, ok := streamConfig.Settings["path"]
 	if !ok {
@@ -123,12 +134,7 @@ func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 		rotateLength: rotateLength,
 		fileName:     streamConfig.Key,
 		hasError:     false,
+		slice:        streamConfig.Slice,
 	}
 	return fs, nil
-}
-func (stream *FileStream) GetError() error {
-	return stream.lastErr
-}
-func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
-	return &stream.queue
 }

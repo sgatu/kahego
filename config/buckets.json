@@ -4,49 +4,26 @@
             "id": "f01",
             "type":"kafka",
             "slice": 1.0,
-            "key": "topic_name",
-            "settings": {
-                "bootstrap.servers": "kafka1:29092",
-                "acks":"all"
-            },
-            "backup": "fbackup"
-        },
-        {
-            "id": "f02",
-            "type":"kafka",
-            "slice": 1.0,
             "key": "topic_name2",
             "settings": {
                 "bootstrap.servers": "kafka1:29092",
-                "acks":"all"
+                "acks":"all",
+                "compression.codec": "snappy"
             },
-            "backup": "fbackup2"
-        },
-        {
-            "id": "fbackup",
-            "type":"file",
-            "slice": 1.0,
-            "key": "topic_name",
-            "settings": {
-                "path":"/tmp/",
-                "sizeRotate":"500000"
-            }
-        },
-        {
-            "id": "fbackup2",
-            "type":"file",
-            "slice": 1.0,
-            "key": "topic_name2",
-            "settings": {
-                "path":"/tmp/",
-                "sizeRotate":"500000"
+            "backup": {
+                "type":"file",
+                "key": "topic_name2",
+                "settings": {
+                    "path":"/tmp/",
+                    "sizeRotate":"500000"
+                }
             }
         }
     ],
     "buckets": [
         {
             "id": "b01",
-            "streams": [ "f01","f02" ],
+            "streams": [ "f01" ],
             "batch": 1000,
             "batchTimeout": 30000
         }

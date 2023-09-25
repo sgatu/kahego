@@ -69,6 +69,7 @@ type Stream interface {
 	Flush() error
 	Close() error
 	GetQueue() *datastructures.Queue[*Message]
+	GetSlice() float32
 }
 
 func GetStream(streamConfig config.StreamConfig) (Stream, error) {

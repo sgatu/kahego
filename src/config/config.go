@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 
@@ -21,7 +20,11 @@ type bucketsConfig struct {
 		Slice    float32           `json:"slice"`
 		Key      string            `json:"key"`
 		Settings map[string]string `json:"settings"`
-		Backup   *string           `json:"backup"`
+		Backup   *struct {
+			Type     string            `json:"type"`
+			Key      string            `json:"key"`
+			Settings map[string]string `json:"settings"`
+		} `json:"backup"`
 	} `json:"streams"`
 	Buckets []struct {
 		Id           string   `json:"id"`
@@ -35,8 +38,14 @@ type StreamConfig struct {
 	Key      string
 	Slice    float32
 	Settings map[string]string
-	Backup   *string
+	Backup   *BackupStreamConfig
 }
+type BackupStreamConfig struct {
+	Type     string
+	Key      string
+	Settings map[string]string
+}
+
 type BucketConfig struct {
 	Streams      []string
 	Batch        int32
@@ -69,24 +78,6 @@ func LoadConfig() (Config, error) {
 		SocketPath:  socketFile,
 	}, nil
 }
-func validateBucketsConfig(cfg MappedConfig) error {
-	for k, stream := range cfg.Streams {
-		if stream.Backup != nil {
-			if *stream.Backup == k {
-				return errors.New("backup on stream could not reference itself")
-			}
-			if refStream, ok := cfg.Streams[*stream.Backup]; ok {
-				if refStream.Backup != nil {
-					return fmt.Errorf("referenced backup stream %s cannot be backuped, only non backuped streams can be used as backup", *stream.Backup)
-				}
-			} else {
-				return fmt.Errorf("referenced backup stream with id %s not defined", *stream.Backup)
-			}
-		}
-
-	}
-	return nil
-}
 func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 
 	fmt.Println("Loading buckets file located at", envConfig.BucketsFile)
@@ -101,14 +92,18 @@ func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 	jsonParser := json.NewDecoder(configFile)
 	jsonParser.Decode(&bucketsConfig)
 	for _, stream := range bucketsConfig.Streams {
-		mappedConfig.Streams[stream.ID] = StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings, Key: stream.Key, Backup: stream.Backup}
+		streamConfig := StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings, Key: stream.Key}
+		if stream.Backup != nil {
+			streamConfig.Backup = &BackupStreamConfig{
+				Type:     stream.Backup.Type,
+				Key:      stream.Backup.Key,
+				Settings: stream.Backup.Settings,
+			}
+		}
+		mappedConfig.Streams[stream.ID] = streamConfig
 	}
 	for _, bucket := range bucketsConfig.Buckets {
 		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
-	}
-	validate_err := validateBucketsConfig(mappedConfig)
-	if validate_err != nil {
-		return nil, validate_err
 	}
 	return &mappedConfig, nil
 }

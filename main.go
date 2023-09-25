@@ -13,6 +13,7 @@ import (
 )
 
 func main() {
+
 	errorChannel := make(chan struct{})
 	envConfig, err := config.LoadConfig()
 	if err != nil {

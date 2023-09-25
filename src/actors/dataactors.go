@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/stream"
@@ -46,11 +45,11 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 	}
 	if streamConfig, ok := dga.StreamsConfig[streamId]; ok {
 		dataActor := DataActor{
-			StreamConfig:     streamConfig,
-			StreamId:         streamId,
-			waitGroup:        dga.waitGroupChilds,
-			backupActor:      streamConfig.Backup,
-			dataGatewayActor: dga,
+			StreamConfig:      streamConfig,
+			StreamId:          streamId,
+			waitGroup:         dga.waitGroupChilds,
+			backupActorConfig: streamConfig.Backup,
+			supervisor:        dga,
 		}
 		InitializeAndStart(&dataActor)
 		dga.dataActors[streamId] = dataActor
@@ -84,135 +83,14 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 		}
 		return Continue, nil
 	case IllChildMessage:
-		delete(dga.dataActors, msg.id)
+		fmt.Println("DataActor is dead due to", msg.Error)
+		delete(dga.dataActors, msg.Id)
 	case PoisonPill:
 		return Stop, nil
 	default:
 		fmt.Printf("Unknown message %T for DataGatewayActor\n", msg)
 	}
 	return Continue, nil
-}
-
-type DataActor struct {
-	StreamId     string
-	StreamConfig config.StreamConfig
-
-	waitGroup        *sync.WaitGroup
-	stream           stream.Stream
-	recvCh           chan interface{}
-	backupActor      *string
-	dataGatewayActor Actor
-	currentMode      DoWorkMethod
-}
-type FlushDataMessage struct{ Stream string }
-type ReviewStream struct{}
-
-func (da *DataActor) OnStart() error {
-	da.recvCh = make(chan interface{})
-	da.transform(false)
-	err := da.initializeStream()
-	if err != nil {
-		da.transform(true)
-	}
-	return nil
-}
-func (da *DataActor) transform(inBackup bool) {
-	if !inBackup {
-		fmt.Printf("Data actor %s transform normal mode\n", da.StreamId)
-		da.currentMode = da.NormalMode
-	} else {
-		fmt.Printf("Data actor %s transform backup mode\n", da.StreamId)
-		// move message to backup
-		if da.backupActor != nil && da.stream.GetQueue().Len() > 0 {
-			fmt.Printf("Sending %d messages to backup\n", da.stream.GetQueue().Len())
-			len := da.stream.GetQueue().Len()
-			for i := 0; i < int(len); i++ {
-				if val, err := da.stream.GetQueue().Pop(); err != nil {
-					Tell(da.dataGatewayActor, stream.PersistMessage{Stream: *da.backupActor, Message: val.Value})
-				}
-			}
-			da.stream.GetQueue().Clear()
-		}
-		da.stream = nil
-		da.currentMode = da.BackupMode
-		TellIn(da, ReviewStream{}, time.Second*60)
-	}
-}
-func (da *DataActor) OnStop() error {
-	fmt.Println("Stopping data actor | DataActor", da.StreamId)
-	if da.stream != nil {
-		da.stream.Flush()
-		da.stream.Close()
-	}
-	return nil
-}
-func (da *DataActor) GetChannel() chan interface{} {
-	return da.recvCh
-}
-func (da *DataActor) GetWaitGroup() *sync.WaitGroup {
-	return da.waitGroup
-}
-func (da *DataActor) GetId() string {
-	return da.StreamId
-}
-func (da *DataActor) initializeStream() error {
-	strm, err := stream.GetStream(da.StreamConfig)
-	if err != nil {
-		return err
-	}
-	da.stream = strm
-	return nil
-}
-func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
-	//fmt.Printf("DataActor processing %T\n", msg)
-	if da.stream.HasError() {
-		da.transform(true)
-		return da.currentMode(msg)
-	}
-	switch msg := msg.(type) {
-	case *stream.Message:
-		da.stream.Push(msg)
-	case FlushDataMessage:
-		err := da.stream.Flush()
-		if err != nil {
-			return Stop, err
-		}
-	case PoisonPill:
-		return Stop, nil
-	default:
-		fmt.Printf("Unknown message %T for DataActor | BackupMode %t\n", msg, false)
-	}
-	return Continue, nil
-}
-func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
-	if da.backupActor == nil {
-		return Stop, da.stream.GetError()
-	}
-	switch msg := msg.(type) {
-	case *stream.Message:
-		Tell(da.dataGatewayActor, stream.PersistMessage{Stream: *da.backupActor, Message: msg})
-	case FlushDataMessage:
-		Tell(da.dataGatewayActor, FlushDataMessage{Stream: *da.backupActor})
-	case PoisonPill:
-		return Stop, nil
-	case ReviewStream:
-		fmt.Println("Review Stream...")
-		if da.initializeStream() == nil {
-			da.transform(false)
-		} else {
-			TellIn(da, ReviewStream{}, time.Second*60)
-		}
-	default:
-		fmt.Printf("Unknown message %T for DataActor | BackupMode %t\n", msg, true)
-
-	}
-	return Continue, nil
-}
-func GetSupervisor(da *DataActor) Actor {
-	return da.dataGatewayActor
-}
-func (da *DataActor) GetWorkMethod() DoWorkMethod {
-	return da.currentMode
 }
 
 type BucketActor struct {

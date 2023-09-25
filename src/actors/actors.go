@@ -14,8 +14,9 @@ const (
 )
 
 type IllChildMessage struct {
-	who Actor
-	id  string
+	Who   Actor
+	Id    string
+	Error error
 }
 type DoWorkMethod func(msg interface{}) (WorkResult, error)
 type Actor interface {
@@ -24,6 +25,7 @@ type Actor interface {
 }
 type SupervisedActor interface {
 	GetSupervisor() Actor
+	GetId() string
 }
 type InitializableActor interface {
 	OnStart() error
@@ -35,9 +37,6 @@ type WaitableActor interface {
 type InterrumpableActor interface {
 	Stop()
 }
-type IdentifiableActor interface {
-	GetId() string
-}
 
 func InitializeAndStart(actor Actor) {
 	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
@@ -48,9 +47,9 @@ func InitializeAndStart(actor Actor) {
 		}
 	}
 	go func() {
-		if wga, ok := actor.(WaitableActor); ok {
-			if wga.GetWaitGroup() != nil {
-				defer wga.GetWaitGroup().Done()
+		if wa, ok := actor.(WaitableActor); ok {
+			if wa.GetWaitGroup() != nil {
+				defer wa.GetWaitGroup().Done()
 			}
 		}
 		for {
@@ -61,7 +60,7 @@ func InitializeAndStart(actor Actor) {
 			}
 			if err != nil {
 				if sa, ok := actor.(SupervisedActor); ok {
-					Tell(sa.GetSupervisor(), IllChildMessage{who: actor})
+					Tell(sa.GetSupervisor(), IllChildMessage{Who: actor, Error: err, Id: sa.GetId()})
 				}
 			}
 		}

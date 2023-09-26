@@ -22,6 +22,7 @@ type DoWorkMethod func(msg interface{}) (WorkResult, error)
 type Actor interface {
 	GetWorkMethod() DoWorkMethod
 	GetChannel() chan interface{}
+	CloseChannel()
 }
 type SupervisedActor interface {
 	GetSupervisor() Actor
@@ -34,16 +35,19 @@ type InitializableActor interface {
 type WaitableActor interface {
 	GetWaitGroup() *sync.WaitGroup
 }
-type InterrumpableActor interface {
-	Stop()
-}
 
-func InitializeAndStart(actor Actor) {
+func InitializeAndStart(actor Actor) error {
 	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {
 			fmt.Println("Could not start actor due to", err)
+			return err
+		}
+	}
+	if wa, ok := actor.(WaitableActor); ok {
+		if wa.GetWaitGroup() != nil {
+			wa.GetWaitGroup().Add(1)
 		}
 	}
 	go func() {
@@ -61,6 +65,7 @@ func InitializeAndStart(actor Actor) {
 			if err != nil {
 				if sa, ok := actor.(SupervisedActor); ok {
 					Tell(sa.GetSupervisor(), IllChildMessage{Who: actor, Error: err, Id: sa.GetId()})
+					break
 				}
 			}
 		}
@@ -71,23 +76,36 @@ func InitializeAndStart(actor Actor) {
 				return
 			}
 		}
-		close(actor.GetChannel())
+		actor.CloseChannel()
 	}()
+	return nil
 }
 
 func Tell(actor Actor, message interface{}) {
 	go func(act Actor, msg interface{}) {
+
 		/*var id string = ""
-		if act, ok := act.(IdentifiableActor); ok {
-			id = fmt.Sprintf(", has ID %s", act.GetId())
+		if sa, ok := act.(SupervisedActor); ok {
+			id = fmt.Sprintf(", has ID %s", sa.GetId())
+		}*/
+		if actor.GetChannel() != nil {
+			defer func() {
+
+				if r := recover(); r != nil {
+					fmt.Printf("Recover %T, %T\n", act, msg)
+				}
+
+			}()
+			act.GetChannel() <- message
 		}
-		fmt.Printf("Sending %T to %T%s\n", msg, act, id)*/
-		act.GetChannel() <- message
+		//fmt.Printf("YYYYB - Sent %T to %T%s\n", msg, act, id)
 	}(actor, message)
 }
 func TellIn(actor Actor, message interface{}, wait time.Duration) {
 	go func(actor Actor, message interface{}, wait time.Duration) {
 		<-time.After(wait)
-		actor.GetChannel() <- message
+		if actor.GetChannel() != nil {
+			actor.GetChannel() <- message
+		}
 	}(actor, message, wait)
 }

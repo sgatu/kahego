@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/stream"
+	"sgatu.com/kahego/src/streams"
 )
 
 type DataActor struct {
@@ -15,7 +15,7 @@ type DataActor struct {
 	StreamConfig config.StreamConfig
 
 	waitGroup   *sync.WaitGroup
-	stream      stream.Stream
+	stream      streams.Stream
 	recvCh      chan interface{}
 	currentMode DoWorkMethod
 
@@ -23,6 +23,7 @@ type DataActor struct {
 	backupActorConfig    *config.BackupStreamConfig
 	backupActor          *backupDataActor
 	backupActorWaitGroup *sync.WaitGroup
+	slice                float32
 }
 type FlushDataMessage struct{ Stream string }
 type ReviewStream struct{}
@@ -30,48 +31,8 @@ type ReviewStream struct{}
 func (da *DataActor) OnStart() error {
 	da.recvCh = make(chan interface{})
 	err := da.initializeStream()
-	da.transform(err != nil)
-	return nil
-}
-func (da *DataActor) transform(inBackup bool) error {
-	if !inBackup {
-		fmt.Printf("Data actor %s transform normal mode\n", da.StreamId)
-		da.currentMode = da.NormalMode
-	} else {
-		fmt.Printf("Data actor %s transform backup mode\n", da.StreamId)
-		// move message to backup
-		if da.backupActorConfig == nil {
-			return fmt.Errorf("could not transform actor, no backup config available")
-		}
-		if da.backupActor == nil {
-			da.backupActorWaitGroup = &sync.WaitGroup{}
-			da.backupActor = &backupDataActor{
-				waitGroup:          da.backupActorWaitGroup,
-				streamId:           da.StreamId,
-				backupStreamConfig: *da.backupActorConfig,
-				supervisor:         da,
-			}
-			InitializeAndStart(da.backupActor)
-			da.backupActorWaitGroup.Add(1)
-		}
-		if da.stream != nil {
-			if da.stream.GetQueue().Len() > 0 {
-				fmt.Printf("Sending %d messages to backup\n", da.stream.GetQueue().Len())
-				len := da.stream.GetQueue().Len()
-				for i := 0; i < int(len); i++ {
-					if val, err := da.stream.GetQueue().Pop(); err != nil {
-						Tell(da.backupActor, val.Value)
-					}
-				}
-				da.stream.GetQueue().Clear()
-			}
-			da.stream.Close()
-			da.stream = nil
-		}
-		da.currentMode = da.BackupMode
-		TellIn(da, ReviewStream{}, time.Second*10)
-	}
-	return nil
+	err = da.transform(err != nil)
+	return err
 }
 func (da *DataActor) OnStop() error {
 	fmt.Println("Stopping data actor | DataActor", da.StreamId)
@@ -94,19 +55,10 @@ func (da *DataActor) GetWaitGroup() *sync.WaitGroup {
 func (da *DataActor) GetId() string {
 	return da.StreamId
 }
-func (da *DataActor) initializeStream() error {
-	strm, err := stream.GetStream(da.StreamConfig)
-	if err != nil {
-		return err
-	}
-	da.stream = strm
-	return nil
-}
 func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
-	//fmt.Printf("DataActor processing %T\n", msg)
-
+	// check if stream in good shape
 	switch msg := msg.(type) {
-	case *stream.Message:
+	case *streams.Message, FlushDataMessage:
 		if da.stream == nil || da.stream.HasError() {
 			err := da.transform(true)
 			if err != nil {
@@ -114,17 +66,13 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 			}
 			return da.currentMode(msg)
 		}
-		if rand.Float32() < da.stream.GetSlice() {
+	}
+	switch msg := msg.(type) {
+	case *streams.Message:
+		if rand.Float32() < da.slice {
 			da.stream.Push(msg)
 		}
 	case FlushDataMessage:
-		if da.stream == nil || da.stream.HasError() {
-			err := da.transform(true)
-			if err != nil {
-				return Stop, err
-			}
-			return Continue, nil
-		}
 		err := da.stream.Flush()
 		if err != nil {
 			return Stop, err
@@ -141,14 +89,13 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 		return Stop, da.stream.GetError()
 	}
 	switch msg := msg.(type) {
-	case *stream.Message:
+	case *streams.Message:
 		Tell(da.backupActor, msg)
 	case FlushDataMessage:
 		Tell(da.backupActor, FlushDataMessage{Stream: ""})
 	case PoisonPill:
 		return Stop, nil
 	case ReviewStream:
-		fmt.Println("Review Stream...")
 		if da.initializeStream() == nil {
 			da.transform(false)
 		} else {
@@ -167,4 +114,61 @@ func (da *DataActor) GetSupervisor() Actor {
 }
 func (da *DataActor) GetWorkMethod() DoWorkMethod {
 	return da.currentMode
+}
+
+func (da *DataActor) transform(inBackup bool) error {
+	if !inBackup {
+		fmt.Printf("Data actor %s transform normal mode\n", da.StreamId)
+		da.currentMode = da.NormalMode
+	} else {
+		fmt.Printf("Data actor %s transform backup mode\n", da.StreamId)
+		// move message to backup
+		if da.backupActorConfig == nil {
+			return fmt.Errorf("could not transform actor, no backup config available")
+		}
+		if da.backupActor == nil {
+			da.backupActorWaitGroup = &sync.WaitGroup{}
+			da.backupActor = &backupDataActor{
+				waitGroup:          da.backupActorWaitGroup,
+				streamId:           da.StreamId,
+				backupStreamConfig: *da.backupActorConfig,
+				supervisor:         da,
+			}
+			InitializeAndStart(da.backupActor)
+		}
+		if da.stream != nil {
+			if da.stream.GetQueue().Len() > 0 {
+				fmt.Printf("Sending %d messages to backup\n", da.stream.GetQueue().Len())
+				len := da.stream.GetQueue().Len()
+				for i := 0; i < int(len); i++ {
+					if val, err := da.stream.GetQueue().Pop(); err != nil {
+						Tell(da.backupActor, val.Value)
+					}
+				}
+				da.stream.GetQueue().Clear()
+			}
+			da.stream.Close()
+			da.stream = nil
+		}
+		da.currentMode = da.BackupMode
+		TellIn(da, ReviewStream{}, time.Second*10)
+	}
+	return nil
+}
+func (da *DataActor) initializeStream() error {
+	da.slice = da.StreamConfig.Slice
+	strm, err := streams.GetStream(da.StreamConfig)
+	if err != nil {
+		return err
+	}
+	da.stream = strm
+	return nil
+}
+func (da *DataActor) IsAvailable() bool {
+	return true
+}
+func (da *DataActor) CloseChannel() {
+	c := da.recvCh
+	da.recvCh = nil
+	close(c)
 }

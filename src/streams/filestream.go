@@ -1,4 +1,4 @@
-package stream
+package streams
 
 import (
 	"errors"
@@ -106,10 +106,10 @@ func (stream *FileStream) GetError() error {
 func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
 	return &stream.queue
 }
-func (stream *FileStream) GetSlice() float32 {
-	return stream.slice
-}
 
+/*
+Factory method
+*/
 func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 	path, ok := streamConfig.Settings["path"]
 	if !ok {

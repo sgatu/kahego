@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/stream"
+	"sgatu.com/kahego/src/streams"
 )
 
 type DataActorGateway struct {
@@ -19,6 +19,7 @@ type DataActorGateway struct {
 }
 
 func (dga *DataActorGateway) OnStart() error {
+
 	dga.dataActors = make(map[string]DataActor)
 	dga.recvCh = make(chan interface{})
 	dga.waitGroupChilds = &sync.WaitGroup{}
@@ -51,10 +52,12 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 			backupActorConfig: streamConfig.Backup,
 			supervisor:        dga,
 		}
-		InitializeAndStart(&dataActor)
-		dga.dataActors[streamId] = dataActor
-		dga.waitGroupChilds.Add(1)
-		return &dataActor, nil
+		err := InitializeAndStart(&dataActor)
+		if err == nil {
+			dga.dataActors[streamId] = dataActor
+			return &dataActor, nil
+		}
+		return nil, err
 	} else {
 		return nil, fmt.Errorf("no configuration found for id %s", streamId)
 	}
@@ -65,7 +68,7 @@ func (dga *DataActorGateway) GetWorkMethod() DoWorkMethod {
 }
 func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
-	case stream.PersistMessage:
+	case streams.PersistMessage:
 		dataActor, err := dga.getStreamActor(msg.Stream)
 		if err == nil {
 			Tell(dataActor, msg.Message)
@@ -83,7 +86,7 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 		}
 		return Continue, nil
 	case IllChildMessage:
-		fmt.Println("DataActor is dead due to", msg.Error)
+		fmt.Println("DataActor is dead due to:", msg.Error)
 		delete(dga.dataActors, msg.Id)
 	case PoisonPill:
 		return Stop, nil
@@ -92,19 +95,24 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
+func (dga *DataActorGateway) CloseChannel() {
+	c := dga.recvCh
+	dga.recvCh = nil
+	close(c)
+}
 
 type BucketActor struct {
 	StreamActors     []string
 	DataGatewayActor Actor
 	Batch            int32
 	BatchTimeout     int32
-	recv             chan interface{}
+	recvCh           chan interface{}
 	processed        int32
 }
 
 func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
-	case *stream.Message:
+	case *streams.Message:
 		ba.processed++
 		flush := false
 		if ba.processed >= ba.Batch {
@@ -112,7 +120,7 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 			ba.processed = 0
 		}
 		for _, dataActorID := range ba.StreamActors {
-			Tell(ba.DataGatewayActor, stream.PersistMessage{Message: msg, Stream: dataActorID})
+			Tell(ba.DataGatewayActor, streams.PersistMessage{Message: msg, Stream: dataActorID})
 			if flush {
 				Tell(ba.DataGatewayActor, FlushDataMessage{Stream: dataActorID})
 			}
@@ -122,11 +130,9 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
-func (ba *BucketActor) GetChannel() chan interface{} {
-	return ba.recv
-}
+
 func (ba *BucketActor) OnStart() error {
-	ba.recv = make(chan interface{})
+	ba.recvCh = make(chan interface{})
 	return nil
 }
 func (ba *BucketActor) OnStop() error {
@@ -134,4 +140,12 @@ func (ba *BucketActor) OnStop() error {
 }
 func (ba *BucketActor) GetWorkMethod() DoWorkMethod {
 	return ba.DoWork
+}
+func (ba *BucketActor) GetChannel() chan interface{} {
+	return ba.recvCh
+}
+func (ba *BucketActor) CloseChannel() {
+	c := ba.recvCh
+	ba.recvCh = nil
+	close(c)
 }

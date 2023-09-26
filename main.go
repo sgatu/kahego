@@ -42,7 +42,6 @@ func main() {
 		StreamsConfig: bucketsConfig.Streams,
 		ErrorChannel:  errorChannel,
 	}
-	wgDataActorGateway.Add(1)
 	actors.InitializeAndStart(&dataActorGateway)
 
 	bucketActors := make(map[string]actors.Actor)
@@ -57,21 +56,21 @@ func main() {
 		actors.InitializeAndStart(&bucketActor)
 	}
 	wgListener := &sync.WaitGroup{}
-	wgListener.Add(1)
-
 	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, WaitGroup: wgListener, BucketActors: bucketActors}
 	actors.InitializeAndStart(&listener)
 
 	done := make(chan os.Signal, 1)
 
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	closeAll := func() {
+		actors.Tell(&dataActorGateway, actors.PoisonPill{})
+		actors.Tell(&listener, actors.PoisonPill{})
+	}
 	select {
 	case <-errorChannel:
+		closeAll()
 	case <-done:
-		actors.Tell(&dataActorGateway, actors.PoisonPill{})
-		listener.Stop()
-		close(errorChannel)
-		close(done)
+		closeAll()
 	}
 	fmt.Println("Waiting listener to close")
 	wgListener.Wait()

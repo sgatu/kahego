@@ -5,14 +5,14 @@ import (
 	"sync"
 
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/stream"
+	"sgatu.com/kahego/src/streams"
 )
 
 type backupDataActor struct {
 	streamId           string
 	backupStreamConfig config.BackupStreamConfig
 	waitGroup          *sync.WaitGroup
-	stream             stream.Stream
+	stream             streams.Stream
 	recvCh             chan interface{}
 	supervisor         Actor
 }
@@ -26,7 +26,7 @@ func (bda *backupDataActor) OnStart() error {
 	return nil
 }
 func (bda *backupDataActor) initializeStream() error {
-	strm, err := stream.GetStream(
+	strm, err := streams.GetStream(
 		config.StreamConfig{
 			Type:     bda.backupStreamConfig.Type,
 			Key:      bda.backupStreamConfig.Key,
@@ -54,7 +54,7 @@ func (bda *backupDataActor) GetWorkMethod() DoWorkMethod {
 }
 func (bda *backupDataActor) DoWork(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
-	case *stream.Message:
+	case *streams.Message:
 		if bda.stream.HasError() {
 			return Stop, bda.stream.GetError()
 		}
@@ -85,4 +85,9 @@ func (bda *backupDataActor) GetId() string {
 }
 func (bda *backupDataActor) GetWaitGroup() *sync.WaitGroup {
 	return bda.waitGroup
+}
+func (bda *backupDataActor) CloseChannel() {
+	c := bda.recvCh
+	bda.recvCh = nil
+	close(c)
 }

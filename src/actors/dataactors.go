@@ -16,6 +16,7 @@ type DataActorGateway struct {
 	dataActors      map[string]DataActor
 	recvCh          chan interface{}
 	waitGroupChilds *sync.WaitGroup
+	mDataActors     *sync.Mutex
 }
 
 func (dga *DataActorGateway) OnStart() error {
@@ -23,6 +24,7 @@ func (dga *DataActorGateway) OnStart() error {
 	dga.dataActors = make(map[string]DataActor)
 	dga.recvCh = make(chan interface{})
 	dga.waitGroupChilds = &sync.WaitGroup{}
+	dga.mDataActors = &sync.Mutex{}
 	return nil
 }
 func (dga *DataActorGateway) OnStop() error {
@@ -40,7 +42,14 @@ func (dga *DataActorGateway) GetChannel() chan interface{} {
 func (dga *DataActorGateway) GetWaitGroup() *sync.WaitGroup {
 	return dga.WaitGroup
 }
+func (dga *DataActorGateway) removeDataActor(streamId string) {
+	dga.mDataActors.Lock()
+	defer dga.mDataActors.Unlock()
+	delete(dga.dataActors, streamId)
+}
 func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
+	dga.mDataActors.Lock()
+	defer dga.mDataActors.Unlock()
 	if actor, ok := dga.dataActors[streamId]; ok {
 		return &actor, nil
 	}
@@ -54,9 +63,11 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 		}
 		err := InitializeAndStart(&dataActor)
 		if err == nil {
+			fmt.Println("initialized new DataActor")
 			dga.dataActors[streamId] = dataActor
 			return &dataActor, nil
 		}
+		fmt.Println("could not initialize DataActor")
 		return nil, err
 	} else {
 		return nil, fmt.Errorf("no configuration found for id %s", streamId)
@@ -70,7 +81,9 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
 	case streams.PersistMessage:
 		dataActor, err := dga.getStreamActor(msg.Stream)
+
 		if err == nil {
+			fmt.Printf("Sending to %+v a message\n", dataActor)
 			Tell(dataActor, msg.Message)
 		} else {
 			if !strings.Contains(err.Error(), "no configuration found") {
@@ -87,7 +100,12 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 		return Continue, nil
 	case IllChildMessage:
 		fmt.Println("DataActor is dead due to:", msg.Error)
-		delete(dga.dataActors, msg.Id)
+		dga.removeDataActor(msg.Id)
+	case DataActorError:
+		fmt.Println("Deleting dataActor with id", msg.Id)
+		dga.removeDataActor(msg.Id)
+		fmt.Printf("Sending to %+v a poisonPill\n", msg.Who)
+		Tell(msg.Who, PoisonPill{})
 	case PoisonPill:
 		return Stop, nil
 	default:

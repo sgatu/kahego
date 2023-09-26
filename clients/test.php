@@ -10,7 +10,7 @@ function makeMessage($bucket, $message, $messageKey = null)
 }
 
 $msg = makeMessage("b01", "messageToBeSent");
-for ($i = 0; $i < 2; $i++) {
+for ($i = 0; $i < 15; $i++) {
     fwrite($sock, pack("V", strlen($msg)) . $msg);
 }
 fflush($sock);

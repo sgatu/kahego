@@ -35,6 +35,9 @@ type InitializableActor interface {
 type WaitableActor interface {
 	GetWaitGroup() *sync.WaitGroup
 }
+type OrderedMessagesActor interface {
+	GetChannelSync() *sync.WaitGroup
+}
 
 func InitializeAndStart(actor Actor) error {
 	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
@@ -80,26 +83,28 @@ func InitializeAndStart(actor Actor) error {
 	}()
 	return nil
 }
-
 func Tell(actor Actor, message interface{}) {
-	go func(act Actor, msg interface{}) {
+	if orderedActor, ok := actor.(OrderedMessagesActor); ok {
+		orderedActor.GetChannelSync().Wait()
+		orderedActor.GetChannelSync().Add(1)
+	}
 
-		/*var id string = ""
-		if sa, ok := act.(SupervisedActor); ok {
-			id = fmt.Sprintf(", has ID %s", sa.GetId())
-		}*/
+	go func(act Actor, msg interface{}) {
+		if orderedActor, ok := act.(OrderedMessagesActor); ok {
+			defer orderedActor.GetChannelSync().Done()
+		}
 		if actor.GetChannel() != nil {
 			defer func() {
 
 				if r := recover(); r != nil {
-					fmt.Printf("Recover %T, %T\n", act, msg)
+					fmt.Printf("Recover %T, %T, %+v\n", act, msg, r)
 				}
 
 			}()
 			act.GetChannel() <- message
 		}
-		//fmt.Printf("YYYYB - Sent %T to %T%s\n", msg, act, id)
 	}(actor, message)
+
 }
 func TellIn(actor Actor, message interface{}, wait time.Duration) {
 	go func(actor Actor, message interface{}, wait time.Duration) {

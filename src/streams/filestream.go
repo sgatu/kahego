@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
+	"unicode"
 
+	"github.com/inhies/go-bytesize"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/datastructures"
 )
@@ -106,6 +107,13 @@ func (stream *FileStream) GetError() error {
 func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
 	return &stream.queue
 }
+func isLastCharNumeric(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	lastChar := rune(s[len(s)-1])
+	return unicode.IsDigit(lastChar)
+}
 
 /*
 Factory method
@@ -118,8 +126,10 @@ func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 	rotateLengthStr, ok := streamConfig.Settings["sizeRotate"]
 	var rotateLength int32 = 1024 * 1024 * 100 //100 MB default file size
 	if ok {
-		fmt.Println("Found sizeRotate in config", rotateLengthStr)
-		i, err := strconv.ParseInt(rotateLengthStr, 10, 32)
+		if isLastCharNumeric(rotateLengthStr) {
+			rotateLengthStr += "B"
+		}
+		i, err := bytesize.Parse(rotateLengthStr)
 		if err == nil {
 			fmt.Println("Parsed sizeRotate to", i)
 			rotateLength = int32(i)

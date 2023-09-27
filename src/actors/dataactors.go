@@ -52,7 +52,7 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 		dataActor := DataActor{
 			StreamConfig: streamConfig,
 			Actor:        &BaseActor{},
-			SupervisedActor: &SupervisorActor{
+			SupervisedActor: &BaseSupervisedActor{
 				supervisor: dga,
 				id:         streamId,
 			},
@@ -82,7 +82,6 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 		dataActor, err := dga.getStreamActor(msg.Stream)
 
 		if err == nil {
-			fmt.Printf("Sending to %+v a message\n", dataActor)
 			Tell(dataActor, msg.Message)
 		} else {
 			if !strings.Contains(err.Error(), "no configuration found") {

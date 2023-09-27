@@ -53,15 +53,15 @@ type SupervisedActor interface {
 	GetId() string
 }
 
-type SupervisorActor struct {
+type BaseSupervisedActor struct {
 	supervisor Actor
 	id         string
 }
 
-func (supervisorActor *SupervisorActor) GetSupervisor() Actor {
+func (supervisorActor *BaseSupervisedActor) GetSupervisor() Actor {
 	return supervisorActor.supervisor
 }
-func (supervisorActor *SupervisorActor) GetId() string {
+func (supervisorActor *BaseSupervisedActor) GetId() string {
 	return supervisorActor.id
 }
 
@@ -141,17 +141,17 @@ func InitializeAndStart(actor Actor) error {
 	return nil
 }
 func Tell(actor Actor, message interface{}) {
-	fmt.Printf("Before telling %T, %T\n", actor, message)
+	//fmt.Printf("Before telling %T, %T\n", actor, message)
 	if orderedActor, ok := actor.(OrderedMessagesActor); ok {
 		orderedActor.GetChannelSync().Wait()
-		fmt.Printf("Add 1 to messageSync %T, %T\n", actor, message)
+		//fmt.Printf("Add 1 to messageSync %T, %T\n", actor, message)
 		orderedActor.GetChannelSync().Add(1)
 	}
-	fmt.Printf("After waiting to tell %T, %T\n", actor, message)
+	//fmt.Printf("After waiting to tell %T, %T\n", actor, message)
 	go func(act Actor, msg interface{}) {
 		if orderedActor, ok := act.(OrderedMessagesActor); ok {
 			defer func() {
-				fmt.Printf("Mark last message for %T, %T as done\n", actor, message)
+				//	fmt.Printf("Mark last message for %T, %T as done\n", actor, message)
 				orderedActor.GetChannelSync().Done()
 			}()
 		}
@@ -170,9 +170,9 @@ func Tell(actor Actor, message interface{}) {
 				}
 
 			}()
-			fmt.Printf("Telling %T, %T\n", actor, message)
+			//fmt.Printf("Telling %T, %T\n", actor, message)
 			act.GetChannel() <- message
-			fmt.Printf("Told %T, %T\n", actor, message)
+			//fmt.Printf("Told %T, %T\n", actor, message)
 		}
 	}(actor, message)
 

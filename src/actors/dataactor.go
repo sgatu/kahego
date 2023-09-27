@@ -15,6 +15,7 @@ type DataActor struct {
 	SupervisedActor
 	WaitableActor
 	OrderedMessagesActor
+
 	StreamConfig config.StreamConfig
 
 	stream      streams.Stream
@@ -151,7 +152,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 			da.backupActorWaitGroup = &sync.WaitGroup{}
 			da.backupActor = &backupDataActor{
 				Actor: &BaseActor{},
-				SupervisedActor: &SupervisorActor{
+				SupervisedActor: &BaseSupervisedActor{
 					supervisor: da,
 					id:         da.GetId(),
 				},

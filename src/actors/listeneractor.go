@@ -50,7 +50,7 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 	switch msg := message.(type) {
 	case AcceptNextConnectionMessage:
 		//make accept return to continue processing messages
-		aca.socket.SetDeadline(time.Now().Add(6 * time.Second))
+		aca.socket.SetDeadline(time.Now().Add(1 * time.Second))
 		conn, err := aca.socket.Accept()
 		if err == nil {
 			nextClientId := fmt.Sprintf("%d", aca.clientIdCounter)
@@ -59,7 +59,7 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 				WaitableActor: &BaseWaitableActor{
 					WaitGroup: aca.clientsWG,
 				},
-				SupervisedActor: &SupervisorActor{
+				SupervisedActor: &BaseSupervisedActor{
 					supervisor: aca,
 					id:         nextClientId,
 				},

@@ -65,6 +65,7 @@ func main() {
 		WaitableActor: &actors.BaseWaitableActor{
 			WaitGroup: wgListener,
 		},
+
 		SocketPath:   envConfig.SocketPath,
 		BucketActors: bucketActors,
 	}

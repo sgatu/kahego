@@ -18,11 +18,9 @@ type AcceptClientActor struct {
 	clientIdCounter int
 	clients         map[string]ClientHandlerActor
 	clientsWG       *sync.WaitGroup
-	messagesSync    *sync.WaitGroup
 }
 
 func (aca *AcceptClientActor) OnStart() error {
-	aca.messagesSync = &sync.WaitGroup{}
 	aca.clients = make(map[string]ClientHandlerActor)
 	aca.clientIdCounter = 1
 	aca.clientsWG = &sync.WaitGroup{}

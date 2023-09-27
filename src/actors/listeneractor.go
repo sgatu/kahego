@@ -10,31 +10,28 @@ import (
 )
 
 type AcceptClientActor struct {
+	Actor
+	WaitableActor
 	BucketActors    map[string]Actor
 	SocketPath      string
-	WaitGroup       *sync.WaitGroup
-	recvCh          chan interface{}
 	socket          *net.UnixListener
 	clientIdCounter int
 	clients         map[string]ClientHandlerActor
 	clientsWG       *sync.WaitGroup
+	messagesSync    *sync.WaitGroup
 }
 
 func (aca *AcceptClientActor) OnStart() error {
+	aca.messagesSync = &sync.WaitGroup{}
 	aca.clients = make(map[string]ClientHandlerActor)
 	aca.clientIdCounter = 1
 	aca.clientsWG = &sync.WaitGroup{}
-	aca.recvCh = make(chan interface{})
 	socket, err := net.ListenUnix("unix", &net.UnixAddr{Name: aca.SocketPath, Net: "unix"})
 	if err != nil {
 		return err
 	}
 	aca.socket = socket
 	Tell(aca, AcceptNextConnectionMessage{})
-	return nil
-}
-
-func (aca *AcceptClientActor) GetSupervisor() Actor {
 	return nil
 }
 func (aca *AcceptClientActor) OnStop() error {
@@ -48,23 +45,26 @@ func (aca *AcceptClientActor) OnStop() error {
 	return nil
 }
 
-func (aca *AcceptClientActor) GetWaitGroup() *sync.WaitGroup {
-	return aca.WaitGroup
-}
 func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
+	fmt.Printf("AcceptedClientActor received %T\n", message)
 	switch msg := message.(type) {
 	case AcceptNextConnectionMessage:
 		//make accept return to continue processing messages
-		aca.socket.SetDeadline(time.Now().Add(2 * time.Second))
+		aca.socket.SetDeadline(time.Now().Add(6 * time.Second))
 		conn, err := aca.socket.Accept()
 		if err == nil {
 			nextClientId := fmt.Sprintf("%d", aca.clientIdCounter)
 			handler := ClientHandlerActor{
+				Actor: &BaseActor{},
+				WaitableActor: &BaseWaitableActor{
+					WaitGroup: aca.clientsWG,
+				},
+				SupervisedActor: &SupervisorActor{
+					supervisor: aca,
+					id:         nextClientId,
+				},
 				client:       conn,
-				waitGroup:    aca.clientsWG,
-				clientId:     nextClientId,
 				bucketActors: aca.BucketActors,
-				supervisor:   aca,
 			}
 			aca.clients[nextClientId] = handler
 			aca.clientIdCounter += 1
@@ -91,15 +91,8 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 	}
 
 }
-func (aca *AcceptClientActor) GetChannel() chan interface{} {
-	return aca.recvCh
-}
 
+// overriding GetWorkMethod
 func (aca *AcceptClientActor) GetWorkMethod() DoWorkMethod {
 	return aca.DoWork
-}
-func (aca *AcceptClientActor) CloseChannel() {
-	c := aca.recvCh
-	aca.recvCh = nil
-	close(c)
 }

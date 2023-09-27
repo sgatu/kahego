@@ -10,23 +10,22 @@ import (
 )
 
 type DataActorGateway struct {
+	Actor
+	WaitableActor
 	StreamsConfig   map[string]config.StreamConfig
 	ErrorChannel    chan struct{}
-	WaitGroup       *sync.WaitGroup
 	dataActors      map[string]DataActor
-	recvCh          chan interface{}
 	waitGroupChilds *sync.WaitGroup
 	mDataActors     *sync.Mutex
 }
 
 func (dga *DataActorGateway) OnStart() error {
-
 	dga.dataActors = make(map[string]DataActor)
-	dga.recvCh = make(chan interface{})
 	dga.waitGroupChilds = &sync.WaitGroup{}
 	dga.mDataActors = &sync.Mutex{}
 	return nil
 }
+
 func (dga *DataActorGateway) OnStop() error {
 	fmt.Println("Waiting for DataActors to close | DataActorGateway")
 	for _, actor := range dga.dataActors {
@@ -36,17 +35,13 @@ func (dga *DataActorGateway) OnStop() error {
 	dga.waitGroupChilds.Wait()
 	return nil
 }
-func (dga *DataActorGateway) GetChannel() chan interface{} {
-	return dga.recvCh
-}
-func (dga *DataActorGateway) GetWaitGroup() *sync.WaitGroup {
-	return dga.WaitGroup
-}
+
 func (dga *DataActorGateway) removeDataActor(streamId string) {
 	dga.mDataActors.Lock()
 	defer dga.mDataActors.Unlock()
 	delete(dga.dataActors, streamId)
 }
+
 func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 	dga.mDataActors.Lock()
 	defer dga.mDataActors.Unlock()
@@ -55,11 +50,17 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 	}
 	if streamConfig, ok := dga.StreamsConfig[streamId]; ok {
 		dataActor := DataActor{
-			StreamConfig:      streamConfig,
-			StreamId:          streamId,
-			waitGroup:         dga.waitGroupChilds,
-			backupActorConfig: streamConfig.Backup,
-			supervisor:        dga,
+			StreamConfig: streamConfig,
+			Actor:        &BaseActor{},
+			SupervisedActor: &SupervisorActor{
+				supervisor: dga,
+				id:         streamId,
+			},
+			WaitableActor: &BaseWaitableActor{
+				WaitGroup: dga.waitGroupChilds,
+			},
+			OrderedMessagesActor: &BaseOrderedMessagesActor{},
+			backupActorConfig:    streamConfig.Backup,
 		}
 		err := InitializeAndStart(&dataActor)
 		if err == nil {
@@ -74,9 +75,7 @@ func (dga *DataActorGateway) getStreamActor(streamId string) (Actor, error) {
 	}
 
 }
-func (dga *DataActorGateway) GetWorkMethod() DoWorkMethod {
-	return dga.DoWork
-}
+
 func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
 	case streams.PersistMessage:
@@ -113,18 +112,18 @@ func (dga *DataActorGateway) DoWork(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
-func (dga *DataActorGateway) CloseChannel() {
-	c := dga.recvCh
-	dga.recvCh = nil
-	close(c)
+
+// override GetWorkMethod
+func (dga *DataActorGateway) GetWorkMethod() DoWorkMethod {
+	return dga.DoWork
 }
 
 type BucketActor struct {
+	Actor
 	StreamActors     []string
 	DataGatewayActor Actor
 	Batch            int32
 	BatchTimeout     int32
-	recvCh           chan interface{}
 	processed        int32
 }
 
@@ -149,21 +148,7 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 	return Continue, nil
 }
 
-func (ba *BucketActor) OnStart() error {
-	ba.recvCh = make(chan interface{})
-	return nil
-}
-func (ba *BucketActor) OnStop() error {
-	return nil
-}
+// override GetWorkMethod
 func (ba *BucketActor) GetWorkMethod() DoWorkMethod {
 	return ba.DoWork
-}
-func (ba *BucketActor) GetChannel() chan interface{} {
-	return ba.recvCh
-}
-func (ba *BucketActor) CloseChannel() {
-	c := ba.recvCh
-	ba.recvCh = nil
-	close(c)
 }

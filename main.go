@@ -38,7 +38,10 @@ func main() {
 	}
 	wgDataActorGateway := &sync.WaitGroup{}
 	dataActorGateway := actors.DataActorGateway{
-		WaitGroup:     wgDataActorGateway,
+		Actor: &actors.BaseActor{},
+		WaitableActor: &actors.BaseWaitableActor{
+			WaitGroup: wgDataActorGateway,
+		},
 		StreamsConfig: bucketsConfig.Streams,
 		ErrorChannel:  errorChannel,
 	}
@@ -47,6 +50,7 @@ func main() {
 	bucketActors := make(map[string]actors.Actor)
 	for id, bucketCfg := range bucketsConfig.Buckets {
 		bucketActor := actors.BucketActor{
+			Actor:            &actors.BaseActor{},
 			StreamActors:     bucketCfg.Streams,
 			Batch:            bucketCfg.Batch,
 			BatchTimeout:     bucketCfg.BatchTimeout,
@@ -56,12 +60,19 @@ func main() {
 		actors.InitializeAndStart(&bucketActor)
 	}
 	wgListener := &sync.WaitGroup{}
-	listener := actors.AcceptClientActor{SocketPath: envConfig.SocketPath, WaitGroup: wgListener, BucketActors: bucketActors}
+	listener := actors.AcceptClientActor{
+		Actor: &actors.BaseActor{},
+		WaitableActor: &actors.BaseWaitableActor{
+			WaitGroup: wgListener,
+		},
+		SocketPath:   envConfig.SocketPath,
+		BucketActors: bucketActors,
+	}
 	actors.InitializeAndStart(&listener)
 
 	done := make(chan os.Signal, 1)
 
-	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGPIPE)
 	closeAll := func() {
 		actors.Tell(&dataActorGateway, actors.PoisonPill{})
 		actors.Tell(&listener, actors.PoisonPill{})
@@ -72,8 +83,8 @@ func main() {
 	case <-done:
 		closeAll()
 	}
-	fmt.Println("Waiting listener to close")
+	fmt.Fprintln(os.Stderr, "Waiting listener to close")
 	wgListener.Wait()
-	fmt.Println("Waiting gateway to close")
+	fmt.Fprintln(os.Stderr, "Waiting gateway to close")
 	wgDataActorGateway.Wait()
 }

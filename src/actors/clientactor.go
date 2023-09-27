@@ -4,17 +4,15 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"sync"
 
 	"sgatu.com/kahego/src/streams"
 )
 
 type ClientHandlerActor struct {
-	recvCh       chan interface{}
+	Actor
+	WaitableActor
+	SupervisedActor
 	client       net.Conn
-	waitGroup    *sync.WaitGroup
-	clientId     string
-	supervisor   Actor
 	bucketActors map[string]Actor
 }
 
@@ -62,12 +60,11 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 	return Continue, nil
 }
 func (cha *ClientHandlerActor) OnStart() error {
-	cha.recvCh = make(chan interface{})
 	Tell(cha, ClientHandleNextMessage{})
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
-	Tell(cha.supervisor, ClientClosedMessage{Id: cha.clientId})
+	Tell(cha.GetSupervisor(), ClientClosedMessage{Id: cha.GetId()})
 	return nil
 }
 func (cha *ClientHandlerActor) Stop() {
@@ -75,21 +72,4 @@ func (cha *ClientHandlerActor) Stop() {
 }
 func (cha *ClientHandlerActor) GetWorkMethod() DoWorkMethod {
 	return cha.DoWork
-}
-func (cha *ClientHandlerActor) GetWaitGroup() *sync.WaitGroup {
-	return cha.waitGroup
-}
-func (cha *ClientHandlerActor) GetSupervisor() Actor {
-	return cha.supervisor
-}
-func (cha *ClientHandlerActor) GetId() string {
-	return cha.clientId
-}
-func (cha *ClientHandlerActor) GetChannel() chan interface{} {
-	return cha.recvCh
-}
-func (cha *ClientHandlerActor) CloseChannel() {
-	c := cha.recvCh
-	cha.recvCh = nil
-	close(c)
 }

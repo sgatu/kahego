@@ -11,20 +11,19 @@ import (
 )
 
 type DataActor struct {
-	StreamId     string
+	Actor
+	SupervisedActor
+	WaitableActor
+	OrderedMessagesActor
 	StreamConfig config.StreamConfig
 
-	waitGroup   *sync.WaitGroup
 	stream      streams.Stream
-	recvCh      chan interface{}
 	currentMode DoWorkMethod
 
-	supervisor           Actor
 	backupActorConfig    *config.BackupStreamConfig
 	backupActor          *backupDataActor
 	backupActorWaitGroup *sync.WaitGroup
 	slice                float32
-	messagesSync         *sync.WaitGroup
 }
 type DataActorError struct {
 	Id  string
@@ -42,8 +41,6 @@ const (
 )
 
 func (da *DataActor) OnStart() error {
-	da.messagesSync = &sync.WaitGroup{}
-	da.recvCh = make(chan interface{})
 	err := da.initializeStream()
 	if err != nil {
 		errB := da.transform(BackupWorkingMode, nil)
@@ -56,7 +53,7 @@ func (da *DataActor) OnStart() error {
 	return nil
 }
 func (da *DataActor) OnStop() error {
-	fmt.Println("Stopping data actor | DataActor", da.StreamId)
+	fmt.Println("Stopping data actor | DataActor", da.GetId())
 	if da.backupActor != nil {
 		Tell(da.backupActor, PoisonPill{})
 		da.backupActorWaitGroup.Wait()
@@ -66,12 +63,6 @@ func (da *DataActor) OnStop() error {
 		da.stream.Close()
 	}
 	return nil
-}
-func (da *DataActor) GetChannel() chan interface{} {
-	return da.recvCh
-}
-func (da *DataActor) GetWaitGroup() *sync.WaitGroup {
-	return da.waitGroup
 }
 
 func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
@@ -108,7 +99,7 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 }
 func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 	if da.backupActor == nil {
-		da.transform(ErrorWorkinMode, fmt.Errorf("no backup actor for stream %s", da.StreamId))
+		da.transform(ErrorWorkinMode, fmt.Errorf("no backup actor for stream %s", da.GetId()))
 	}
 	switch msg := msg.(type) {
 	case *streams.Message:
@@ -124,7 +115,7 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 			TellIn(da, ReviewStream{}, time.Second*10)
 		}
 	case IllChildMessage:
-		da.transform(ErrorWorkinMode, fmt.Errorf("backup actor dead for stream %s", da.StreamId))
+		da.transform(ErrorWorkinMode, fmt.Errorf("backup actor dead for stream %s", da.GetId()))
 	default:
 		fmt.Printf("Unknown message %T for DataActor | BackupMode\n", msg)
 
@@ -148,10 +139,10 @@ func (da *DataActor) GetWorkMethod() DoWorkMethod {
 func (da *DataActor) transform(mode WorkingMode, err error) error {
 	switch mode {
 	case NormalWorkingMode:
-		fmt.Printf("Data actor %s transform normal mode\n", da.StreamId)
+		fmt.Printf("Data actor %s transform normal mode\n", da.GetId())
 		da.currentMode = da.NormalMode
 	case BackupWorkingMode:
-		fmt.Printf("Data actor %s transform backup mode\n", da.StreamId)
+		fmt.Printf("Data actor %s transform backup mode\n", da.GetId())
 		// move message to backup
 		if da.backupActorConfig == nil {
 			return fmt.Errorf("could not transform actor, no backup config available")
@@ -159,10 +150,13 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 		if da.backupActor == nil {
 			da.backupActorWaitGroup = &sync.WaitGroup{}
 			da.backupActor = &backupDataActor{
-				waitGroup:          da.backupActorWaitGroup,
-				streamId:           da.StreamId,
+				Actor: &BaseActor{},
+				SupervisedActor: &SupervisorActor{
+					supervisor: da,
+					id:         da.GetId(),
+				},
+				BaseWaitableActor:  BaseWaitableActor{WaitGroup: da.backupActorWaitGroup},
 				backupStreamConfig: *da.backupActorConfig,
-				supervisor:         da,
 			}
 			InitializeAndStart(da.backupActor)
 		}
@@ -183,10 +177,10 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 		da.currentMode = da.BackupMode
 		TellIn(da, ReviewStream{}, time.Second*10)
 	case ErrorWorkinMode:
-		fmt.Printf("Data actor %s transform error mode\n", da.StreamId)
+		fmt.Printf("Data actor %s transform error mode\n", da.GetId())
 		da.currentMode = da.ErrorMode
 		err := fmt.Errorf("could not startup data actor %s", err.Error())
-		Tell(da.supervisor, DataActorError{Id: da.StreamId, Err: err, Who: da})
+		Tell(da.GetSupervisor(), DataActorError{Id: da.GetId(), Err: err, Who: da})
 	}
 	return nil
 }
@@ -198,22 +192,4 @@ func (da *DataActor) initializeStream() error {
 	}
 	da.stream = strm
 	return nil
-}
-func (da *DataActor) CloseChannel() {
-	c := da.recvCh
-	da.recvCh = nil
-	close(c)
-}
-
-// SupervisedActor interface
-func (da *DataActor) GetId() string {
-	return da.StreamId
-}
-func (da *DataActor) GetSupervisor() Actor {
-	return da.supervisor
-}
-
-// OrderedMessagesActor Interface
-func (da *DataActor) GetChannelSync() *sync.WaitGroup {
-	return da.messagesSync
 }

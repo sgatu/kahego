@@ -2,23 +2,20 @@ package actors
 
 import (
 	"fmt"
-	"sync"
 
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/streams"
 )
 
 type backupDataActor struct {
-	streamId           string
+	Actor
+	SupervisedActor
+	BaseWaitableActor
 	backupStreamConfig config.BackupStreamConfig
-	waitGroup          *sync.WaitGroup
 	stream             streams.Stream
-	recvCh             chan interface{}
-	supervisor         Actor
 }
 
 func (bda *backupDataActor) OnStart() error {
-	bda.recvCh = make(chan interface{})
 	err := bda.initializeStream()
 	if err != nil {
 		return err
@@ -41,7 +38,7 @@ func (bda *backupDataActor) initializeStream() error {
 	return nil
 }
 func (bda *backupDataActor) OnStop() error {
-	fmt.Println("Stopping backup data actor | DataActor", bda.streamId)
+	fmt.Println("Stopping backup data actor | DataActor", bda.GetId())
 	if bda.stream != nil {
 		bda.stream.Flush()
 		bda.stream.Close()
@@ -73,21 +70,4 @@ func (bda *backupDataActor) DoWork(msg interface{}) (WorkResult, error) {
 		fmt.Printf("Unknown message %T for backupDataActor\n", msg)
 	}
 	return Continue, nil
-}
-func (bda *backupDataActor) GetChannel() chan interface{} {
-	return bda.recvCh
-}
-func (bda *backupDataActor) GetSupervisor() Actor {
-	return bda.supervisor
-}
-func (bda *backupDataActor) GetId() string {
-	return bda.streamId
-}
-func (bda *backupDataActor) GetWaitGroup() *sync.WaitGroup {
-	return bda.waitGroup
-}
-func (bda *backupDataActor) CloseChannel() {
-	c := bda.recvCh
-	bda.recvCh = nil
-	close(c)
 }

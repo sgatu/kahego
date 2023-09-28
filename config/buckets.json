@@ -9,6 +9,13 @@
                 "bootstrap.servers": "kafka1:29092",
                 "acks":"all",
                 "compression.codec": "snappy"
+            },
+            "backup": {
+                "type":"file",
+                "settings": {
+                    "path":"/tmp/",
+                    "sizeRotate": "10MB"
+                }
             }
         }
     ],

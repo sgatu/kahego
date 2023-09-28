@@ -123,6 +123,12 @@ func (baseOrderedMessagesActorV2 *BaseOrderedMessagesActor) GetChannelSync() cha
 func InitializeAndStart(actor Actor) error {
 	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
 	actor.Init()
+	if oma, ok := actor.(OrderedMessagesActor); ok {
+		go func() {
+			// first message processing
+			oma.GetChannelSync() <- struct{}{}
+		}()
+	}
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {
@@ -135,12 +141,7 @@ func InitializeAndStart(actor Actor) error {
 			wa.GetWaitGroup().Add(1)
 		}
 	}
-	if oma, ok := actor.(OrderedMessagesActor); ok {
-		go func() {
-			// first message processing
-			oma.GetChannelSync() <- struct{}{}
-		}()
-	}
+
 	go func() {
 		if wa, ok := actor.(WaitableActor); ok {
 			if wa.GetWaitGroup() != nil {

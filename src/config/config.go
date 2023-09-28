@@ -12,7 +12,12 @@ type Config struct {
 	BucketsFile string
 	SocketPath  string
 }
-
+type jsonBucketConfig struct {
+	Id           string   `json:"id"`
+	Streams      []string `json:"streams"`
+	Batch        int32    `json:"batch"`
+	BatchTimeout int32    `json:"batchTimeout"`
+}
 type bucketsConfig struct {
 	Streams []struct {
 		ID       string            `json:"id"`
@@ -26,12 +31,8 @@ type bucketsConfig struct {
 			Settings map[string]string `json:"settings"`
 		} `json:"backup"`
 	} `json:"streams"`
-	Buckets []struct {
-		Id           string   `json:"id"`
-		Streams      []string `json:"streams"`
-		Batch        int32    `json:"batch"`
-		BatchTimeout int32    `json:"batchTimeout"`
-	}
+	Buckets       []jsonBucketConfig
+	DefaultBucket *jsonBucketConfig `json:"defaultBucket"`
 }
 type StreamConfig struct {
 	Type     string
@@ -52,8 +53,9 @@ type BucketConfig struct {
 	BatchTimeout int32
 }
 type MappedConfig struct {
-	Streams map[string]StreamConfig
-	Buckets map[string]BucketConfig
+	Streams       map[string]StreamConfig
+	Buckets       map[string]BucketConfig
+	DefaultBucket *BucketConfig
 }
 
 func getConfig(expected string, _default string) string {
@@ -104,6 +106,13 @@ func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 	}
 	for _, bucket := range bucketsConfig.Buckets {
 		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
+	}
+	if bucketsConfig.DefaultBucket != nil {
+		mappedConfig.DefaultBucket = &BucketConfig{
+			Streams:      bucketsConfig.DefaultBucket.Streams,
+			Batch:        bucketsConfig.DefaultBucket.Batch,
+			BatchTimeout: bucketsConfig.DefaultBucket.BatchTimeout,
+		}
 	}
 	return &mappedConfig, nil
 }

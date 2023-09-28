@@ -14,10 +14,6 @@ type Message struct {
 	Key    string
 	Data   []byte
 }
-type PersistMessage struct {
-	Message *Message
-	Stream  string
-}
 type MessageError struct {
 	Key  string
 	Data []byte

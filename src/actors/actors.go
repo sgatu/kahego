@@ -41,9 +41,34 @@ func (baseActor *BaseActor) CloseChannel() {
 	baseActor.recvCh = nil
 	close(c)
 }
+
 func (baseActor *BaseActor) GetWorkMethod() DoWorkMethod {
 	return func(msg interface{}) (WorkResult, error) {
 		fmt.Printf("BaseActor message processing, received a %T, you should override this method.\n", msg)
+		return Continue, nil
+	}
+}
+
+type QueuedChannelActor struct {
+	recvCh       chan interface{}
+	ChannelQueue int
+}
+
+func (queuedChannelActor *QueuedChannelActor) Init() {
+	queuedChannelActor.recvCh = make(chan interface{}, queuedChannelActor.ChannelQueue)
+}
+
+func (queuedChannelActor *QueuedChannelActor) GetChannel() chan interface{} {
+	return queuedChannelActor.recvCh
+}
+func (queuedChannelActor *QueuedChannelActor) CloseChannel() {
+	c := queuedChannelActor.recvCh
+	queuedChannelActor.recvCh = nil
+	close(c)
+}
+func (queuedChannelActor *QueuedChannelActor) GetWorkMethod() DoWorkMethod {
+	return func(msg interface{}) (WorkResult, error) {
+		fmt.Printf("QueuedChannelActor message processing, received a %T, you should override this method.\n", msg)
 		return Continue, nil
 	}
 }
@@ -82,17 +107,17 @@ func (baseWaitableActor *BaseWaitableActor) GetWaitGroup() *sync.WaitGroup {
 }
 
 type OrderedMessagesActor interface {
-	GetChannelSync() *sync.WaitGroup
+	GetChannelSync() chan struct{}
 }
 type BaseOrderedMessagesActor struct {
-	waitGroup *sync.WaitGroup
+	doneChan chan struct{}
 }
 
-func (baseOrderedMessageActor *BaseOrderedMessagesActor) GetChannelSync() *sync.WaitGroup {
-	if baseOrderedMessageActor.waitGroup == nil {
-		baseOrderedMessageActor.waitGroup = &sync.WaitGroup{}
+func (baseOrderedMessagesActorV2 *BaseOrderedMessagesActor) GetChannelSync() chan struct{} {
+	if baseOrderedMessagesActorV2.doneChan == nil {
+		baseOrderedMessagesActorV2.doneChan = make(chan struct{})
 	}
-	return baseOrderedMessageActor.waitGroup
+	return baseOrderedMessagesActorV2.doneChan
 }
 
 func InitializeAndStart(actor Actor) error {
@@ -110,23 +135,32 @@ func InitializeAndStart(actor Actor) error {
 			wa.GetWaitGroup().Add(1)
 		}
 	}
+	if oma, ok := actor.(OrderedMessagesActor); ok {
+		go func() {
+			// first message processing
+			oma.GetChannelSync() <- struct{}{}
+		}()
+	}
 	go func() {
 		if wa, ok := actor.(WaitableActor); ok {
 			if wa.GetWaitGroup() != nil {
 				defer wa.GetWaitGroup().Done()
 			}
 		}
+
 		for {
 			message := <-actor.GetChannel()
 			result, err := actor.GetWorkMethod()(message)
-			if result == Stop || err != nil {
+			if result == Stop {
+				if err != nil {
+					if sa, ok := actor.(SupervisedActor); ok {
+						Tell(sa.GetSupervisor(), IllChildMessage{Who: actor, Error: err, Id: sa.GetId()})
+					}
+				}
 				break
 			}
-			if err != nil {
-				if sa, ok := actor.(SupervisedActor); ok {
-					Tell(sa.GetSupervisor(), IllChildMessage{Who: actor, Error: err, Id: sa.GetId()})
-					break
-				}
+			if oma, ok := actor.(OrderedMessagesActor); ok {
+				oma.GetChannelSync() <- struct{}{}
 			}
 		}
 		if ia, ok := actor.(InitializableActor); ok {
@@ -136,43 +170,37 @@ func InitializeAndStart(actor Actor) error {
 				return
 			}
 		}
+		if oma, ok := actor.(OrderedMessagesActor); ok {
+			close(oma.GetChannelSync())
+		}
 		actor.CloseChannel()
 	}()
 	return nil
 }
 func Tell(actor Actor, message interface{}) {
-	//fmt.Printf("Before telling %T, %T\n", actor, message)
-	if orderedActor, ok := actor.(OrderedMessagesActor); ok {
+	/*if orderedActor, ok := actor.(OrderedMessagesActorV2); ok {
 		orderedActor.GetChannelSync().Wait()
-		//fmt.Printf("Add 1 to messageSync %T, %T\n", actor, message)
 		orderedActor.GetChannelSync().Add(1)
-	}
-	//fmt.Printf("After waiting to tell %T, %T\n", actor, message)
+	}*/
 	go func(act Actor, msg interface{}) {
-		if orderedActor, ok := act.(OrderedMessagesActor); ok {
-			defer func() {
-				//	fmt.Printf("Mark last message for %T, %T as done\n", actor, message)
-				orderedActor.GetChannelSync().Done()
-			}()
-		}
-
 		if actor.GetChannel() != nil {
 			defer func() {
-
 				if r := recover(); r != nil {
 					fmt.Printf("Recover %T, %T, %+v\n", act, msg, r)
-					if orderedActor, ok := act.(OrderedMessagesActor); ok {
-						defer func() {
-							fmt.Printf("Mark last message for %T, %T as done in recover\n", actor, message)
-							orderedActor.GetChannelSync().Done()
-						}()
-					}
 				}
 
 			}()
-			//fmt.Printf("Telling %T, %T\n", actor, message)
-			act.GetChannel() <- message
-			//fmt.Printf("Told %T, %T\n", actor, message)
+			/*	if orderedActor, ok := act.(OrderedMessagesActor); ok {
+				orderedActor.GetChannelSync().Done()
+			}*/
+			if orderedActor, ok := act.(OrderedMessagesActor); ok {
+				if _, more := <-orderedActor.GetChannelSync(); more {
+					act.GetChannel() <- message
+				}
+			} else {
+				act.GetChannel() <- message
+			}
+
 		}
 	}(actor, message)
 
@@ -180,8 +208,6 @@ func Tell(actor Actor, message interface{}) {
 func TellIn(actor Actor, message interface{}, wait time.Duration) {
 	go func(actor Actor, message interface{}, wait time.Duration) {
 		<-time.After(wait)
-		if actor.GetChannel() != nil {
-			actor.GetChannel() <- message
-		}
+		Tell(actor, message)
 	}(actor, message, wait)
 }

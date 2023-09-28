@@ -65,9 +65,9 @@ func main() {
 		WaitableActor: &actors.BaseWaitableActor{
 			WaitGroup: wgListener,
 		},
-
-		SocketPath:   envConfig.SocketPath,
-		BucketActors: bucketActors,
+		OrderedMessagesActor: &actors.BaseOrderedMessagesActor{},
+		SocketPath:           envConfig.SocketPath,
+		BucketActors:         bucketActors,
 	}
 	actors.InitializeAndStart(&listener)
 

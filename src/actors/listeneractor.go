@@ -12,6 +12,7 @@ import (
 type AcceptClientActor struct {
 	Actor
 	WaitableActor
+	OrderedMessagesActor
 	BucketActors    map[string]Actor
 	SocketPath      string
 	socket          *net.UnixListener
@@ -33,6 +34,7 @@ func (aca *AcceptClientActor) OnStart() error {
 	return nil
 }
 func (aca *AcceptClientActor) OnStop() error {
+	fmt.Println("Before cleanup")
 	aca.socket.Close()
 	aca.clientsWG.Wait()
 	if aca.socket != nil {
@@ -47,9 +49,9 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 	fmt.Printf("AcceptedClientActor received %T\n", message)
 	switch msg := message.(type) {
 	case AcceptNextConnectionMessage:
-		//make accept return to continue processing messages
 		aca.socket.SetDeadline(time.Now().Add(1 * time.Second))
 		conn, err := aca.socket.Accept()
+
 		if err == nil {
 			nextClientId := fmt.Sprintf("%d", aca.clientIdCounter)
 			handler := ClientHandlerActor{
@@ -70,12 +72,15 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 			Tell(aca, message) //continue loop
 			return Continue, nil
 		} else {
+			//fmt.Printf("AcceptedClientActor got error err, %+v\n", err)
 			if cErr, ok := err.(*net.OpError); ok {
 				if errors.Is(cErr.Unwrap(), os.ErrDeadlineExceeded) {
 					Tell(aca, message) //continue loop
+					//fmt.Printf("AcceptedClientActor just continue, deadline error\n")
 					return Continue, nil
 				}
 			}
+			//fmt.Printf("AcceptedClientActor STOOOP nonDeadLine\n")
 			return Stop, nil
 		}
 	case ClientClosedMessage:

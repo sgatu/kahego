@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 
+	"github.com/inhies/go-bytesize"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	BucketsFile string
 	SocketPath  string
+	MaxCpus     int
+	MaxMemory   int64
 }
 type jsonBucketConfig struct {
 	Id           string   `json:"id"`
@@ -19,41 +23,36 @@ type jsonBucketConfig struct {
 	BatchTimeout int32    `json:"batchTimeout"`
 }
 type bucketsConfig struct {
-	Streams []struct {
-		ID       string            `json:"id"`
+	Streams map[string]struct {
 		Type     string            `json:"type"`
 		Slice    float32           `json:"slice"`
-		Key      string            `json:"key"`
 		Settings map[string]string `json:"settings"`
 		Backup   *struct {
 			Type     string            `json:"type"`
-			Key      string            `json:"key"`
 			Settings map[string]string `json:"settings"`
 		} `json:"backup"`
-	} `json:"streams"`
+	} `json:"streamsConfigs"`
 	Buckets       []jsonBucketConfig
 	DefaultBucket *jsonBucketConfig `json:"defaultBucket"`
 }
 type StreamConfig struct {
 	Type     string
-	Key      string
 	Slice    float32
 	Settings map[string]string
 	Backup   *BackupStreamConfig
 }
 type BackupStreamConfig struct {
 	Type     string
-	Key      string
 	Settings map[string]string
 }
 
 type BucketConfig struct {
-	Streams      []string
-	Batch        int32
-	BatchTimeout int32
+	BucketId      string
+	StreamConfigs map[string]StreamConfig
+	Batch         int32
+	BatchTimeout  int32
 }
 type MappedConfig struct {
-	Streams       map[string]StreamConfig
 	Buckets       map[string]BucketConfig
 	DefaultBucket *BucketConfig
 }
@@ -75,9 +74,21 @@ func LoadConfig() (Config, error) {
 	}
 	bucketsFile := getConfig(os.Getenv("BUCKETS_FILE"), "./buckets.json")
 	socketFile := getConfig(os.Getenv("SOCKET"), "/tmp/kahego.sock")
+	maxCpus, err := strconv.ParseInt(getConfig(os.Getenv("MAXCPUS"), "2"), 10, 64)
+	if err != nil {
+		maxCpus = 2
+	}
+	maxMemory, err := bytesize.Parse(getConfig(os.Getenv("MAXMEMORY"), "250MB"))
+	if err != nil {
+		mm, _ := bytesize.Parse("250MB")
+		maxMemory = mm
+	}
+
 	return Config{
 		BucketsFile: bucketsFile,
 		SocketPath:  socketFile,
+		MaxCpus:     int(maxCpus),
+		MaxMemory:   int64(maxMemory),
 	}, nil
 }
 func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
@@ -89,30 +100,42 @@ func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 	if err != nil {
 		return &mappedConfig, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
 	}
-	mappedConfig = MappedConfig{Streams: make(map[string]StreamConfig), Buckets: make(map[string]BucketConfig)}
+	mappedConfig = MappedConfig{Buckets: make(map[string]BucketConfig), DefaultBucket: nil}
 	defer configFile.Close()
 	jsonParser := json.NewDecoder(configFile)
 	jsonParser.Decode(&bucketsConfig)
-	for _, stream := range bucketsConfig.Streams {
-		streamConfig := StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings, Key: stream.Key}
+	streamsConfig := make(map[string]StreamConfig)
+	for k, stream := range bucketsConfig.Streams {
+		streamConfig := StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings}
 		if stream.Backup != nil {
 			streamConfig.Backup = &BackupStreamConfig{
 				Type:     stream.Backup.Type,
-				Key:      stream.Backup.Key,
 				Settings: stream.Backup.Settings,
 			}
 		}
-		mappedConfig.Streams[stream.ID] = streamConfig
+		streamsConfig[k] = streamConfig
 	}
 	for _, bucket := range bucketsConfig.Buckets {
-		mappedConfig.Buckets[bucket.Id] = BucketConfig{Streams: bucket.Streams, Batch: bucket.Batch, BatchTimeout: bucket.BatchTimeout}
+		mappedConfig.Buckets[bucket.Id] = createBucketConfig(&bucket, streamsConfig)
 	}
 	if bucketsConfig.DefaultBucket != nil {
-		mappedConfig.DefaultBucket = &BucketConfig{
-			Streams:      bucketsConfig.DefaultBucket.Streams,
-			Batch:        bucketsConfig.DefaultBucket.Batch,
-			BatchTimeout: bucketsConfig.DefaultBucket.BatchTimeout,
-		}
+		defaultBucket := createBucketConfig(bucketsConfig.DefaultBucket, streamsConfig)
+		mappedConfig.DefaultBucket = &defaultBucket
 	}
 	return &mappedConfig, nil
+}
+func createBucketConfig(bucketConfig *jsonBucketConfig, streamsConfig map[string]StreamConfig) BucketConfig {
+	bucketStreamConfigs := make(map[string]StreamConfig)
+	for _, strmCfgId := range bucketConfig.Streams {
+		if strmCfg, ok := streamsConfig[strmCfgId]; ok {
+			bucketStreamConfigs[strmCfgId] = strmCfg
+		}
+	}
+
+	return BucketConfig{
+		StreamConfigs: bucketStreamConfigs,
+		Batch:         bucketConfig.Batch,
+		BatchTimeout:  bucketConfig.BatchTimeout,
+		BucketId:      bucketConfig.Id,
+	}
 }

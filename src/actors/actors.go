@@ -49,30 +49,6 @@ func (baseActor *BaseActor) GetWorkMethod() DoWorkMethod {
 	}
 }
 
-type QueuedChannelActor struct {
-	recvCh       chan interface{}
-	ChannelQueue int
-}
-
-func (queuedChannelActor *QueuedChannelActor) Init() {
-	queuedChannelActor.recvCh = make(chan interface{}, queuedChannelActor.ChannelQueue)
-}
-
-func (queuedChannelActor *QueuedChannelActor) GetChannel() chan interface{} {
-	return queuedChannelActor.recvCh
-}
-func (queuedChannelActor *QueuedChannelActor) CloseChannel() {
-	c := queuedChannelActor.recvCh
-	queuedChannelActor.recvCh = nil
-	close(c)
-}
-func (queuedChannelActor *QueuedChannelActor) GetWorkMethod() DoWorkMethod {
-	return func(msg interface{}) (WorkResult, error) {
-		fmt.Printf("QueuedChannelActor message processing, received a %T, you should override this method.\n", msg)
-		return Continue, nil
-	}
-}
-
 type SupervisedActor interface {
 	GetSupervisor() Actor
 	GetId() string
@@ -171,6 +147,7 @@ func InitializeAndStart(actor Actor) error {
 				return
 			}
 		}
+
 		if oma, ok := actor.(OrderedMessagesActor); ok {
 			close(oma.GetChannelSync())
 		}
@@ -179,21 +156,8 @@ func InitializeAndStart(actor Actor) error {
 	return nil
 }
 func Tell(actor Actor, message interface{}) {
-	/*if orderedActor, ok := actor.(OrderedMessagesActorV2); ok {
-		orderedActor.GetChannelSync().Wait()
-		orderedActor.GetChannelSync().Add(1)
-	}*/
 	go func(act Actor, msg interface{}) {
 		if actor.GetChannel() != nil {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("Recover %T, %T, %+v\n", act, msg, r)
-				}
-
-			}()
-			/*	if orderedActor, ok := act.(OrderedMessagesActor); ok {
-				orderedActor.GetChannelSync().Done()
-			}*/
 			if orderedActor, ok := act.(OrderedMessagesActor); ok {
 				if _, more := <-orderedActor.GetChannelSync(); more {
 					act.GetChannel() <- message

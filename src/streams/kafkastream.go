@@ -114,6 +114,7 @@ func (stream *KafkaStream) deliveryManagement() {
 			}
 		}
 	}
+
 }
 func (stream *KafkaStream) testBrokers() error {
 	brokersCfgVal, err := stream.kafkaConfig.Get("bootstrap.servers", "")
@@ -179,13 +180,13 @@ func (stream *KafkaStream) HasError() bool {
 /*
 Factory method
 */
-func getKafkaStream(streamConfig config.StreamConfig) (*KafkaStream, error) {
+func getKafkaStream(streamConfig config.StreamConfig, bucketName string) (*KafkaStream, error) {
 
 	configsParsed := kafka.StringMapToConfigEntries(streamConfig.Settings, kafka.AlterOperationSet)
 	cfgMap := kafka.ConfigMap{}
 	for _, cfg := range configsParsed {
 		cfgMap.SetKey(cfg.Name, cfg.Value)
 	}
-	stream := KafkaStream{kafkaConfig: &cfgMap, topic: streamConfig.Key}
+	stream := KafkaStream{kafkaConfig: &cfgMap, topic: bucketName}
 	return &stream, nil
 }

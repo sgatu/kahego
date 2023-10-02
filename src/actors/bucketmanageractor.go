@@ -39,7 +39,7 @@ func (dbma *BucketManagerActor) getBucket(bucket string) (Actor, error) {
 		InitializeAndStart(bucketActor)
 		return bucketActor, nil
 	}
-	return nil, fmt.Errorf("no configuration for bucket %s available, neither a default one", bucket)
+	return nil, fmt.Errorf("no configuration for bucket %s available, neither a default one was defined", bucket)
 }
 func (dbma *BucketManagerActor) DoWork(msg interface{}) (WorkResult, error) {
 

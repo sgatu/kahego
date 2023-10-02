@@ -15,6 +15,7 @@
                 "type":"file",
                 "settings": {
                     "path":"/tmp/",
+                    "maxFiles": 10,
                     "sizeRotate": "10MB",
                     "fileNameTemplate":"{bucket}-{ts}.bckstm"
                 }

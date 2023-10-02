@@ -102,3 +102,8 @@ Bucket name and message are required, but the message key can be empty, that mea
 As you can see neither the bucket_name or the message_key can exceed 255 bytes since their length definition is only 1 byte.
 
 You can see an example in the test.php under clients folder. 
+
+
+#### 5. Code architecture
+
+Code is structured under a custom made actor system that allows for paralelization and concurrent execution of all the required work, like listening to new clients, dealing with each connected client, batching the messages, writing to files or kafka etc...

@@ -5,22 +5,26 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"syscall"
 
+	"github.com/inhies/go-bytesize"
 	"sgatu.com/kahego/src/actors"
 	"sgatu.com/kahego/src/config"
 )
 
 func main() {
-
-	errorChannel := make(chan struct{})
 	envConfig, err := config.LoadConfig()
 	if err != nil {
 		fmt.Println("Environment file missing or could not be loaded.\nAn environment variable \"environment\" MUST be defined and file .env.{environment}.local must exist.\nBy default {environment} is dev.")
 		os.Exit(1)
 	}
-
+	fmt.Println("Setting max cpus usage to", envConfig.MaxCpus)
+	runtime.GOMAXPROCS(envConfig.MaxCpus)
+	fmt.Println("Setting max memory usage to", bytesize.New(float64(envConfig.MaxMemory)))
+	debug.SetMemoryLimit(envConfig.MaxMemory)
 	if _, err := os.Stat(envConfig.SocketPath); err == nil {
 		fmt.Println("Socket file at", envConfig.SocketPath, "already exists. Check if not another process is already running, if so close it else try to delete it.")
 		os.Exit(1)
@@ -36,29 +40,15 @@ func main() {
 		fmt.Println("Could not load buckets and streams config due to err ->", err)
 		os.Exit(1)
 	}
-	wgDataActorGateway := &sync.WaitGroup{}
-	dataActorGateway := actors.DataActorGateway{
-		Actor: &actors.BaseActor{},
-		WaitableActor: &actors.BaseWaitableActor{
-			WaitGroup: wgDataActorGateway,
-		},
-		StreamsConfig: bucketsConfig.Streams,
-		ErrorChannel:  errorChannel,
+	bucketsWaitGroup := &sync.WaitGroup{}
+	bucketManagerActor := actors.BucketManagerActor{
+		Actor:               &actors.BaseActor{},
+		WaitableActor:       &actors.BaseWaitableActor{WaitGroup: bucketsWaitGroup},
+		BucketsConfig:       bucketsConfig.Buckets,
+		DefaultBucketConfig: bucketsConfig.DefaultBucket,
 	}
-	actors.InitializeAndStart(&dataActorGateway)
+	actors.InitializeAndStart(&bucketManagerActor)
 
-	bucketActors := make(map[string]actors.Actor)
-	for id, bucketCfg := range bucketsConfig.Buckets {
-		bucketActor := actors.BucketActor{
-			Actor:            &actors.BaseActor{},
-			StreamActors:     bucketCfg.Streams,
-			Batch:            bucketCfg.Batch,
-			BatchTimeout:     bucketCfg.BatchTimeout,
-			DataGatewayActor: &dataActorGateway,
-		}
-		bucketActors[id] = &bucketActor
-		actors.InitializeAndStart(&bucketActor)
-	}
 	wgListener := &sync.WaitGroup{}
 	listener := actors.AcceptClientActor{
 		Actor: &actors.BaseActor{},
@@ -67,25 +57,22 @@ func main() {
 		},
 		OrderedMessagesActor: &actors.BaseOrderedMessagesActor{},
 		SocketPath:           envConfig.SocketPath,
-		BucketActors:         bucketActors,
+		BucketMangerActor:    &bucketManagerActor,
 	}
 	actors.InitializeAndStart(&listener)
+	closeSignalCh := make(chan os.Signal, 1)
 
-	done := make(chan os.Signal, 1)
-
-	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGPIPE)
+	signal.Notify(closeSignalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGPIPE)
 	closeAll := func() {
-		actors.Tell(&dataActorGateway, actors.PoisonPill{})
+		actors.Tell(&bucketManagerActor, actors.PoisonPill{})
 		actors.Tell(&listener, actors.PoisonPill{})
 	}
-	select {
-	case <-errorChannel:
-		closeAll()
-	case <-done:
-		closeAll()
-	}
+
+	<-closeSignalCh
+	closeAll()
+
 	fmt.Fprintln(os.Stderr, "Waiting listener to close")
 	wgListener.Wait()
-	fmt.Fprintln(os.Stderr, "Waiting gateway to close")
-	wgDataActorGateway.Wait()
+	fmt.Fprintln(os.Stderr, "Waiting buckets to close")
+	bucketsWaitGroup.Wait()
 }

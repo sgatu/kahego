@@ -13,6 +13,7 @@ type backupDataActor struct {
 	BaseWaitableActor
 	backupStreamConfig config.BackupStreamConfig
 	stream             streams.Stream
+	BucketId           string
 }
 
 func (bda *backupDataActor) OnStart() error {
@@ -26,10 +27,10 @@ func (bda *backupDataActor) initializeStream() error {
 	strm, err := streams.GetStream(
 		config.StreamConfig{
 			Type:     bda.backupStreamConfig.Type,
-			Key:      bda.backupStreamConfig.Key,
 			Slice:    1.0,
 			Settings: bda.backupStreamConfig.Settings,
 		},
+		bda.BucketId,
 	)
 	if err != nil {
 		return err
@@ -38,7 +39,7 @@ func (bda *backupDataActor) initializeStream() error {
 	return nil
 }
 func (bda *backupDataActor) OnStop() error {
-	fmt.Println("Stopping backup data actor | DataActor", bda.GetId())
+	fmt.Println("Stopping backup data actor | DataActor", bda.GetId(), "of bucket", bda.BucketId)
 	if bda.stream != nil {
 		bda.stream.Flush()
 		bda.stream.Close()

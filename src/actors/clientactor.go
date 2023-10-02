@@ -12,8 +12,8 @@ type ClientHandlerActor struct {
 	Actor
 	WaitableActor
 	SupervisedActor
-	client       net.Conn
-	bucketActors map[string]Actor
+	client            net.Conn
+	bucketMangerActor Actor
 }
 
 func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
@@ -43,19 +43,15 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 			countRead += uint32(len)
 			msg = append(msg, buffer[:len]...)
 		}
-		go func(msg []byte) {
-			message, err := streams.GetMessage(msg)
-			if err == nil {
-				if actor, ok := cha.bucketActors[message.Bucket]; ok {
-					Tell(actor, message)
-				}
-			} else {
-				fmt.Println(err)
-			}
-		}(msg)
+		datamessage, errmsg := streams.GetMessage(msg)
+		if errmsg == nil {
+			Tell(cha.bucketMangerActor, datamessage)
+		} else {
+			fmt.Println(err)
+		}
 		Tell(cha, message)
 	default:
-		fmt.Println("Unknown message received by ClientHandlerActor")
+		fmt.Printf("Unknown message received %T by ClientHandlerActor\n", message)
 	}
 	return Continue, nil
 }
@@ -64,6 +60,7 @@ func (cha *ClientHandlerActor) OnStart() error {
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
+	cha.client.Close()
 	Tell(cha.GetSupervisor(), ClientClosedMessage{Id: cha.GetId()})
 	return nil
 }

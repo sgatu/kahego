@@ -13,12 +13,12 @@ type AcceptClientActor struct {
 	Actor
 	WaitableActor
 	OrderedMessagesActor
-	BucketActors    map[string]Actor
-	SocketPath      string
-	socket          *net.UnixListener
-	clientIdCounter int
-	clients         map[string]ClientHandlerActor
-	clientsWG       *sync.WaitGroup
+	BucketMangerActor Actor
+	SocketPath        string
+	socket            *net.UnixListener
+	clientIdCounter   int
+	clients           map[string]ClientHandlerActor
+	clientsWG         *sync.WaitGroup
 }
 
 func (aca *AcceptClientActor) OnStart() error {
@@ -34,19 +34,16 @@ func (aca *AcceptClientActor) OnStart() error {
 	return nil
 }
 func (aca *AcceptClientActor) OnStop() error {
-	fmt.Println("Before cleanup")
 	aca.socket.Close()
 	aca.clientsWG.Wait()
 	if aca.socket != nil {
 		aca.socket.Close()
 		os.Remove(aca.SocketPath)
 	}
-	fmt.Println("After cleanup")
 	return nil
 }
 
 func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
-	fmt.Printf("AcceptedClientActor received %T\n", message)
 	switch msg := message.(type) {
 	case AcceptNextConnectionMessage:
 		aca.socket.SetDeadline(time.Now().Add(1 * time.Second))
@@ -63,8 +60,8 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 					supervisor: aca,
 					id:         nextClientId,
 				},
-				client:       conn,
-				bucketActors: aca.BucketActors,
+				client:            conn,
+				bucketMangerActor: aca.BucketMangerActor,
 			}
 			aca.clients[nextClientId] = handler
 			aca.clientIdCounter += 1
@@ -72,15 +69,12 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 			Tell(aca, message) //continue loop
 			return Continue, nil
 		} else {
-			//fmt.Printf("AcceptedClientActor got error err, %+v\n", err)
 			if cErr, ok := err.(*net.OpError); ok {
 				if errors.Is(cErr.Unwrap(), os.ErrDeadlineExceeded) {
 					Tell(aca, message) //continue loop
-					//fmt.Printf("AcceptedClientActor just continue, deadline error\n")
 					return Continue, nil
 				}
 			}
-			//fmt.Printf("AcceptedClientActor STOOOP nonDeadLine\n")
 			return Stop, nil
 		}
 	case ClientClosedMessage:

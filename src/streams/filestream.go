@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 	"unicode"
 
@@ -16,15 +17,16 @@ import (
 FileStream used to write data to file
 */
 type FileStream struct {
-	path         string
-	fileName     string
-	file         *os.File
-	queue        datastructures.Queue[*Message]
-	writtenBytes int32
-	rotateLength int32
-	slice        float32
-	hasError     bool
-	lastErr      error
+	path             string
+	fileNameTemplate string
+	bucketId         string
+	file             *os.File
+	queue            datastructures.Queue[*Message]
+	writtenBytes     int32
+	rotateLength     int32
+	slice            float32
+	hasError         bool
+	lastErr          error
 }
 
 func (stream *FileStream) Push(msg *Message) error {
@@ -38,7 +40,9 @@ func (stream *FileStream) rotateFile() error {
 			stream.file.Sync()
 			stream.file.Close()
 		}
-		fullPath := stream.path + stream.fileName + "-" + fmt.Sprintf("%d", time.Now().Unix())
+		fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
+		fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
+		fullPath := stream.path + fileName
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			stream.hasError = true
@@ -118,13 +122,14 @@ func isLastCharNumeric(s string) bool {
 /*
 Factory method
 */
-func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
+func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream, error) {
 	path, ok := streamConfig.Settings["path"]
 	if !ok {
 		return nil, errors.New("no path defined for fileStream")
 	}
 	rotateLengthStr, ok := streamConfig.Settings["sizeRotate"]
 	var rotateLength int32 = 1024 * 1024 * 100 //100 MB default file size
+	var fileNameTemplate string = bucket
 	if ok {
 		if isLastCharNumeric(rotateLengthStr) {
 			rotateLengthStr += "B"
@@ -137,14 +142,19 @@ func getFileStream(streamConfig config.StreamConfig) (*FileStream, error) {
 			fmt.Println(err)
 		}
 	}
+	fileNameTemplateStr, ok := streamConfig.Settings["fileNameTemplate"]
+	if ok {
+		fileNameTemplate = fileNameTemplateStr
+	}
 	fs := &FileStream{
-		path:         path,
-		file:         nil,
-		writtenBytes: 0,
-		rotateLength: rotateLength,
-		fileName:     streamConfig.Key,
-		hasError:     false,
-		slice:        streamConfig.Slice,
+		path:             path,
+		file:             nil,
+		writtenBytes:     0,
+		rotateLength:     rotateLength,
+		fileNameTemplate: fileNameTemplate,
+		bucketId:         bucket,
+		hasError:         false,
+		slice:            streamConfig.Slice,
 	}
 	return fs, nil
 }

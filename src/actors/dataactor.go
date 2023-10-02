@@ -16,6 +16,7 @@ type DataActor struct {
 	WaitableActor
 	OrderedMessagesActor
 
+	BucketId     string
 	StreamConfig config.StreamConfig
 
 	stream      streams.Stream
@@ -31,7 +32,7 @@ type DataActorError struct {
 	Err error
 	Who Actor
 }
-type FlushDataMessage struct{ Stream string }
+type FlushDataMessage struct{}
 type ReviewStream struct{}
 type WorkingMode int
 
@@ -59,7 +60,7 @@ func (da *DataActor) OnStop() error {
 		Tell(da.backupActor, PoisonPill{})
 		da.backupActorWaitGroup.Wait()
 	}
-	if da.stream != nil {
+	if da.stream != nil && !da.stream.HasError() {
 		da.stream.Flush()
 		da.stream.Close()
 	}
@@ -84,6 +85,7 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 			da.stream.Push(msg)
 		}
 	case FlushDataMessage:
+		fmt.Println("Data actor received a flush message")
 		err := da.stream.Flush()
 		if err != nil {
 			errB := da.transform(BackupWorkingMode, nil)
@@ -106,7 +108,7 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 	case *streams.Message:
 		Tell(da.backupActor, msg)
 	case FlushDataMessage:
-		Tell(da.backupActor, FlushDataMessage{Stream: ""})
+		Tell(da.backupActor, FlushDataMessage{})
 	case PoisonPill:
 		return Stop, nil
 	case ReviewStream:
@@ -126,24 +128,23 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 func (da *DataActor) ErrorMode(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
 	case PoisonPill:
-		fmt.Println("ErrorMode PoisonPill")
 		return Stop, nil
 	default:
 		fmt.Printf("Unknown message %T for DataActor | ErrorMode\n", msg)
 	}
 	return Continue, nil
 }
-func (da *DataActor) GetWorkMethod() DoWorkMethod {
+func (da DataActor) GetWorkMethod() DoWorkMethod {
 	return da.currentMode
 }
 
 func (da *DataActor) transform(mode WorkingMode, err error) error {
 	switch mode {
 	case NormalWorkingMode:
-		fmt.Printf("Data actor %s transform normal mode\n", da.GetId())
+		fmt.Printf("Data actor %s | bucket %s transform normal mode\n", da.GetId(), da.BucketId)
 		da.currentMode = da.NormalMode
 	case BackupWorkingMode:
-		fmt.Printf("Data actor %s transform backup mode\n", da.GetId())
+		fmt.Printf("Data actor %s | bucket %s transform backup mode\n", da.GetId(), da.BucketId)
 		// move message to backup
 		if da.backupActorConfig == nil {
 			return fmt.Errorf("could not transform actor, no backup config available")
@@ -158,6 +159,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 				},
 				BaseWaitableActor:  BaseWaitableActor{WaitGroup: da.backupActorWaitGroup},
 				backupStreamConfig: *da.backupActorConfig,
+				BucketId:           da.BucketId,
 			}
 			InitializeAndStart(da.backupActor)
 		}
@@ -187,7 +189,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 }
 func (da *DataActor) initializeStream() error {
 	da.slice = da.StreamConfig.Slice
-	strm, err := streams.GetStream(da.StreamConfig)
+	strm, err := streams.GetStream(da.StreamConfig, da.BucketId)
 	if err != nil {
 		return err
 	}

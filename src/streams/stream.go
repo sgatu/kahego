@@ -14,10 +14,6 @@ type Message struct {
 	Key    string
 	Data   []byte
 }
-type PersistMessage struct {
-	Message *Message
-	Stream  string
-}
 type MessageError struct {
 	Key  string
 	Data []byte
@@ -71,14 +67,14 @@ type Stream interface {
 	GetQueue() *datastructures.Queue[*Message]
 }
 
-func GetStream(streamConfig config.StreamConfig) (Stream, error) {
+func GetStream(streamConfig config.StreamConfig, bucket string) (Stream, error) {
 	var strm Stream
 	var err error
 	switch streamConfig.Type {
 	case "kafka":
-		strm, err = getKafkaStream(streamConfig)
+		strm, err = getKafkaStream(streamConfig, bucket)
 	case "file":
-		strm, err = getFileStream(streamConfig)
+		strm, err = getFileStream(streamConfig, bucket)
 	default:
 		return nil, fmt.Errorf("invalid stream type %s or not implemented", streamConfig.Type)
 	}

@@ -15,17 +15,27 @@
                 "type":"file",
                 "settings": {
                     "path":"/tmp/",
-                    "maxFiles": 10,
+                    "maxFiles": "10",
                     "sizeRotate": "10MB",
-                    "fileNameTemplate":"{bucket}-{ts}.bckstm"
+                    "fileNameTemplate":"{bucket}/{ts}.bckstm"
                 }
+            }
+        },
+        "file_copy": {
+            "type":"file",
+            "slice":1.0,
+            "settings":{
+                "path":"/backup/",
+                "maxFiles":"10",
+                "sizeRotate":"100MB",
+                "fileNameTemplate":"{bucket}{PS}{ts}.bckstm"
             }
         }
     },
     "buckets": [
         {
             "id": "requests",
-            "streams": [ "kafka_01" ],
+            "streams": [ "kafka_01", "file_copy" ],
             "batch": 10000,
             "batchTimeout": 30000
         }

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -22,8 +24,10 @@ type FileStream struct {
 	bucketId         string
 	file             *os.File
 	queue            datastructures.Queue[*Message]
+	filesPaths       datastructures.Queue[string]
 	writtenBytes     int32
 	rotateLength     int32
+	maxFiles         uint32
 	slice            float32
 	hasError         bool
 	lastErr          error
@@ -33,16 +37,58 @@ func (stream *FileStream) Push(msg *Message) error {
 	stream.queue.Push(&datastructures.Node[*Message]{Value: msg})
 	return nil
 }
+func (stream *FileStream) getFilesPattern() (string, string) {
+	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", "*")
+	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
+	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
+	fileDirs := strings.Split(fileName, string(os.PathSeparator))
+	fullPath := stream.path
+	if fullPath[len(fullPath)-1] == os.PathSeparator {
+		fullPath = strings.TrimRight(fullPath, string(os.PathSeparator))
+	}
+	for i := 0; i < len(fileDirs); i++ {
+		if i == len(fileDirs)-1 {
+			fileName = fileDirs[i]
+		} else {
+			fullPath = fullPath + string(os.PathSeparator) + fileDirs[i]
+		}
+	}
+	return fullPath, fileName
+}
+func (stream *FileStream) getNextFileName() (string, string) {
+	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
+	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
+	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
+	fileDirs := strings.Split(fileName, string(os.PathSeparator))
+	fullPath := stream.path
+	if fullPath[len(fullPath)-1] == os.PathSeparator {
+		fullPath = strings.TrimRight(fullPath, string(os.PathSeparator))
+	}
+	for i := 0; i < len(fileDirs); i++ {
+		if i == len(fileDirs)-1 {
+			fileName = fileDirs[i]
+		} else {
+			fullPath = fullPath + string(os.PathSeparator) + fileDirs[i]
+		}
+	}
+	return fullPath, fileName
+}
 func (stream *FileStream) rotateFile() error {
 	if stream.writtenBytes >= stream.rotateLength || stream.file == nil {
+		fmt.Printf("Rotating file because of %d >= %d\n", stream.writtenBytes, stream.rotateLength)
 		stream.writtenBytes = 0
 		if stream.file != nil {
 			stream.file.Sync()
 			stream.file.Close()
 		}
-		fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
-		fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
-		fullPath := stream.path + fileName
+		for stream.filesPaths.Len() >= stream.maxFiles {
+			path, _ := stream.filesPaths.Pop()
+			os.Remove(path.Value)
+		}
+		filePath, fileName := stream.getNextFileName()
+		os.MkdirAll(filePath, 0777)
+		fullPath := filePath + string(os.PathSeparator) + fileName
+		stream.filesPaths.Push(&datastructures.Node[string]{Value: fullPath})
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			stream.hasError = true
@@ -55,12 +101,14 @@ func (stream *FileStream) rotateFile() error {
 
 }
 func (stream *FileStream) flush() error {
-	err := stream.rotateFile()
-	if err != nil {
-		return err
-	}
 	length := stream.queue.Len()
 	for i := 0; i < int(length); i++ {
+		if i%100 == 0 || i == 0 {
+			err := stream.rotateFile()
+			if err != nil {
+				return err
+			}
+		}
 		node, err := stream.queue.Pop()
 		if err == nil {
 			serializedData := node.Value.Serialize()
@@ -96,6 +144,16 @@ func (stream *FileStream) Close() error {
 func (stream *FileStream) Init() error {
 	stream.hasError = false
 	stream.lastErr = nil
+	dir, filePattern := stream.getFilesPattern()
+	files, rerr := os.ReadDir(dir)
+	if rerr == nil {
+		for _, file := range files {
+			if _, err := filepath.Match(filePattern, file.Name()); err == nil {
+				fmt.Println("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
+				stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
+			}
+		}
+	}
 	err := stream.rotateFile()
 	if err != nil {
 		return err
@@ -142,6 +200,16 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 			fmt.Println(err)
 		}
 	}
+	var maxFiles uint32 = 1024
+	if maxFilesStr, ok := streamConfig.Settings["maxFiles"]; ok {
+		maxFilesParsed, err := strconv.ParseUint(maxFilesStr, 10, 32)
+		if err == nil {
+			maxFiles = uint32(maxFilesParsed)
+		}
+		if maxFiles < 1 {
+			maxFiles = 1
+		}
+	}
 	fileNameTemplateStr, ok := streamConfig.Settings["fileNameTemplate"]
 	if ok {
 		fileNameTemplate = fileNameTemplateStr
@@ -155,6 +223,7 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		bucketId:         bucket,
 		hasError:         false,
 		slice:            streamConfig.Slice,
+		maxFiles:         maxFiles,
 	}
 	return fs, nil
 }

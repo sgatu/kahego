@@ -86,7 +86,7 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 			}
 			ba.lastFlush = time.Now().UnixMilli()
 		}
-		TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
+		TellInSafe(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	case DataActorError:
 		ba.removeDataActor(msg.Id)
 		Tell(msg.Who, PoisonPill{})
@@ -114,7 +114,7 @@ func (ba *BucketActor) OnStart() error {
 	ba.processed = 0
 	ba.dataActors = make(map[string]*DataActor)
 	ba.lastFlush = time.Now().UnixMilli()
-	TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
+	TellInSafe(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	return nil
 }
 

@@ -78,10 +78,11 @@ func main() {
 	}
 	bucketsWaitGroup := &sync.WaitGroup{}
 	bucketManagerActor := actors.BucketManagerActor{
-		Actor:               &actors.BaseActor{},
-		WaitableActor:       &actors.BaseWaitableActor{WaitGroup: bucketsWaitGroup},
-		BucketsConfig:       bucketsConfig.Buckets,
-		DefaultBucketConfig: bucketsConfig.DefaultBucket,
+		Actor:                &actors.BaseActor{},
+		OrderedMessagesActor: &actors.BaseOrderedMessagesActor{},
+		WaitableActor:        &actors.BaseWaitableActor{WaitGroup: bucketsWaitGroup},
+		BucketsConfig:        bucketsConfig.Buckets,
+		DefaultBucketConfig:  bucketsConfig.DefaultBucket,
 	}
 	actors.InitializeAndStart(&bucketManagerActor)
 

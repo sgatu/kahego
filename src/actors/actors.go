@@ -165,6 +165,27 @@ func Tell(actor Actor, message interface{}) {
 					act.GetChannel() <- message
 				}
 			} else {
+				log.Trace(fmt.Sprintf("Telling %T a message %T", act, msg))
+				act.GetChannel() <- message
+			}
+
+		}
+	}(actor, message)
+
+}
+func TellSafe(actor Actor, message interface{}) {
+	go func(act Actor, msg interface{}) {
+		if actor.GetChannel() != nil {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Debug(fmt.Sprintf("Tell error recovered, %s", r))
+				}
+			}()
+			if orderedActor, ok := act.(OrderedMessagesActor); ok {
+				if _, more := <-orderedActor.GetChannelSync(); more {
+					act.GetChannel() <- message
+				}
+			} else {
 				act.GetChannel() <- message
 			}
 
@@ -176,5 +197,11 @@ func TellIn(actor Actor, message interface{}, wait time.Duration) {
 	go func(actor Actor, message interface{}, wait time.Duration) {
 		<-time.After(wait)
 		Tell(actor, message)
+	}(actor, message, wait)
+}
+func TellInSafe(actor Actor, message interface{}, wait time.Duration) {
+	go func(actor Actor, message interface{}, wait time.Duration) {
+		<-time.After(wait)
+		TellSafe(actor, message)
 	}(actor, message, wait)
 }

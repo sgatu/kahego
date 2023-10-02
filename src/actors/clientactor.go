@@ -13,6 +13,7 @@ type ClientHandlerActor struct {
 	Actor
 	WaitableActor
 	SupervisedActor
+	OrderedMessagesActor
 	client            net.Conn
 	bucketMangerActor Actor
 }
@@ -51,6 +52,8 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 			fmt.Println(err)
 		}
 		Tell(cha, message)
+	case PoisonPill:
+		return Stop, nil
 	default:
 		log.Trace(fmt.Sprintf("Unknown message received %T by ClientHandlerActor", message))
 	}
@@ -61,6 +64,7 @@ func (cha *ClientHandlerActor) OnStart() error {
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
+	log.Printf("Stopping client %T", cha)
 	cha.client.Close()
 	Tell(cha.GetSupervisor(), ClientClosedMessage{Id: cha.GetId()})
 	return nil

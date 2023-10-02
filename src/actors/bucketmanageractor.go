@@ -12,6 +12,7 @@ import (
 type BucketManagerActor struct {
 	Actor
 	WaitableActor
+	OrderedMessagesActor
 	bucketActors        map[string]Actor
 	BucketsConfig       map[string]config.BucketConfig
 	DefaultBucketConfig *config.BucketConfig

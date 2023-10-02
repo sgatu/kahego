@@ -34,12 +34,16 @@ func (aca *AcceptClientActor) OnStart() error {
 	return nil
 }
 func (aca *AcceptClientActor) OnStop() error {
+	for _, actor := range aca.clients {
+		Tell(&actor, PoisonPill{})
+	}
 	aca.socket.Close()
 	aca.clientsWG.Wait()
 	if aca.socket != nil {
 		aca.socket.Close()
 		os.Remove(aca.SocketPath)
 	}
+
 	return nil
 }
 
@@ -60,8 +64,9 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 					supervisor: aca,
 					id:         nextClientId,
 				},
-				client:            conn,
-				bucketMangerActor: aca.BucketMangerActor,
+				OrderedMessagesActor: &BaseOrderedMessagesActor{},
+				client:               conn,
+				bucketMangerActor:    aca.BucketMangerActor,
 			}
 			aca.clients[nextClientId] = handler
 			aca.clientIdCounter += 1

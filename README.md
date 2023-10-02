@@ -84,6 +84,12 @@ This will create a dist folder which will contains all the necessary files:
 }
 ```
 
+Keep in mind that batch and batchTimeout have little effect on kafka streams due to being controlled by kafka configuration, to be more precise
+```
+    "batch.num.messages": "50000", // batch size
+    "queue.buffering.max.messages": "500000",  //max messages stored in buffer
+    "queue.buffering.max.ms": "1000" //batch send every x ms
+```
 #### 4. Message serialization
 
 The message is serialized in the next way:

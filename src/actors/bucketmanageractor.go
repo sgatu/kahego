@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/streams"
 )
@@ -52,13 +53,13 @@ func (dbma *BucketManagerActor) DoWork(msg interface{}) (WorkResult, error) {
 			fmt.Println(err)
 		}
 	case PoisonPill:
-		fmt.Println("BucketManagerActor received a PosionPill")
+		log.Trace("BucketManagerActor received a PosionPill")
 		return Stop, nil
 	case IllChildMessage:
-		fmt.Printf("Bucket %s actor has died due to %s\n", msg.Id, msg.Error)
+		log.Warn(fmt.Sprintf("Bucket %s actor has died due to %s", msg.Id, msg.Error))
 		delete(dbma.bucketActors, msg.Id)
 	default:
-		fmt.Printf("Bucket Manager Actor received invalid message %T\n", msg)
+		log.Warn(fmt.Sprintf("Bucket Manager Actor received invalid message %T", msg))
 	}
 	return Continue, nil
 }

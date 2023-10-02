@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/inhies/go-bytesize"
+	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/datastructures"
 )
@@ -133,7 +134,7 @@ func (stream *FileStream) flush() error {
 	return stream.file.Sync()
 }
 func (stream *FileStream) Flush() error {
-	fmt.Printf("Flushing fileStream with %d pending messages\n", stream.queue.Len())
+	log.Debug(fmt.Sprintf("Flushing fileStream with %d pending messages", stream.queue.Len()))
 	err := stream.flush()
 	if err != nil {
 		stream.lastErr = err
@@ -158,7 +159,7 @@ func (stream *FileStream) Init() error {
 	if rerr == nil {
 		for _, file := range files {
 			if _, err := filepath.Match(filePattern, file.Name()); err == nil {
-				fmt.Println("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
+				log.Trace("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
 				stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
 			}
 		}
@@ -203,10 +204,9 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		}
 		i, err := bytesize.Parse(rotateLengthStr)
 		if err == nil {
-			fmt.Println("Parsed sizeRotate to", i)
 			rotateLength = int32(i)
 		} else {
-			fmt.Println(err)
+			log.Error(err)
 		}
 	}
 	var maxFiles uint32 = 1024

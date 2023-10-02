@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/datastructures"
 )
@@ -44,7 +45,7 @@ type KafkaStream struct {
 
 func (stream *KafkaStream) setErrorMode(_type KafkaErrorType, err error) {
 	kafkaError := &KafkaStreamError{err: err, errorType: _type}
-	fmt.Printf("Kafka Stream Error: %s\n", kafkaError)
+	log.Warn(fmt.Sprintf("Kafka Stream Error: %s", kafkaError))
 	stream.errorLock.Lock()
 	defer stream.errorLock.Unlock()
 	stream.lastErr = kafkaError

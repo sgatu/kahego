@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type WorkResult int
@@ -44,7 +46,7 @@ func (baseActor *BaseActor) CloseChannel() {
 
 func (baseActor *BaseActor) GetWorkMethod() DoWorkMethod {
 	return func(msg interface{}) (WorkResult, error) {
-		fmt.Printf("BaseActor message processing, received a %T, you should override this method.\n", msg)
+		log.Warn(fmt.Sprintf("BaseActor message processing, received a %T, you should override this method.", msg))
 		return Continue, nil
 	}
 }
@@ -97,7 +99,7 @@ func (baseOrderedMessagesActorV2 *BaseOrderedMessagesActor) GetChannelSync() cha
 }
 
 func InitializeAndStart(actor Actor) error {
-	fmt.Println("Starting actor", fmt.Sprintf("%T", actor))
+	log.Debug(fmt.Sprintf("Starting actor %T", actor))
 	actor.Init()
 	if oma, ok := actor.(OrderedMessagesActor); ok {
 		go func() {
@@ -108,7 +110,7 @@ func InitializeAndStart(actor Actor) error {
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {
-			fmt.Println("Could not start actor due to", err)
+			log.Warn(fmt.Sprintf("Could not start actor due to %s", err))
 			return err
 		}
 	}
@@ -143,7 +145,7 @@ func InitializeAndStart(actor Actor) error {
 		if ia, ok := actor.(InitializableActor); ok {
 			err := ia.OnStop()
 			if err != nil {
-				fmt.Println("Could not cleanup actor", fmt.Sprintf("%T", actor), "due to", err)
+				log.Warn(fmt.Sprintf("Could not cleanup actor %s due to %s", fmt.Sprintf("%T", actor), err))
 				return
 			}
 		}

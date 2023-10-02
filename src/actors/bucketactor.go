@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
+	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/streams"
 )
 
+type CheckFlushNeeded struct{}
 type BucketActor struct {
 	Actor
 	WaitableActor
@@ -18,6 +21,7 @@ type BucketActor struct {
 	waitGroupStreams *sync.WaitGroup
 	dataActors       map[string]*DataActor
 	processed        int32
+	lastFlush        int64
 }
 
 func (ba *BucketActor) getStreamActor(streamId string) (*DataActor, error) {
@@ -41,7 +45,7 @@ func (ba *BucketActor) getStreamActor(streamId string) (*DataActor, error) {
 		}
 		err := InitializeAndStart(&dataActor)
 		if err != nil {
-			fmt.Println("could not initialize DataActor")
+			log.Warn(fmt.Sprintf("Could not initialize DataActor with id %s, bucketId %s", dataActor.GetId(), dataActor.BucketId))
 			return nil, err
 		}
 		ba.dataActors[streamId] = &dataActor
@@ -66,24 +70,33 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 		for id := range ba.BucketConfig.StreamConfigs {
 			actor, err := ba.getStreamActor(id)
 			if err != nil && !strings.Contains(err.Error(), "no configuration found") {
-				fmt.Println("Could not forward message to DataActor | BucketId", ba.BucketConfig.BucketId, ", StreamId", id, "| err: ", err)
+				log.Warn(fmt.Sprintf("Could not forward message to DataActor - BucketId %s, StreamId %s, err %s", ba.BucketConfig.BucketId, id, err))
 				return Stop, err
 			}
 			Tell(actor, msg)
 			if flush {
+				ba.lastFlush = time.Now().UnixMilli()
 				Tell(actor, FlushDataMessage{})
 			}
 		}
+	case CheckFlushNeeded:
+		if time.Now().UnixMilli()-ba.lastFlush > int64(ba.BucketConfig.BatchTimeout) {
+			for _, actor := range ba.dataActors {
+				Tell(actor, FlushDataMessage{})
+			}
+			ba.lastFlush = time.Now().UnixMilli()
+		}
+		TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	case DataActorError:
 		ba.removeDataActor(msg.Id)
 		Tell(msg.Who, PoisonPill{})
 	case IllChildMessage:
-		fmt.Println("DataActor is dead due to:", msg.Error)
+		log.Warn(fmt.Sprintf("DataActor is dead due to: %s", msg.Error))
 		ba.removeDataActor(msg.Id)
 	case PoisonPill:
 		return Stop, nil
 	default:
-		fmt.Printf("Bucket actor received invalid message %T\n", msg)
+		log.Trace(fmt.Sprintf("Bucket actor received invalid message %T", msg))
 	}
 	return Continue, nil
 }
@@ -96,10 +109,12 @@ func (ba *BucketActor) OnStop() error {
 	return nil
 }
 func (ba *BucketActor) OnStart() error {
-	fmt.Println("Initialized bucket \"" + ba.BucketId + "\" with config id \"" + ba.BucketConfig.BucketId + "\"")
+	log.Debug(fmt.Sprintf("Initialized bucket \"%s\" with config id \"%s\"", ba.BucketId, ba.BucketConfig.BucketId))
 	ba.waitGroupStreams = &sync.WaitGroup{}
 	ba.processed = 0
 	ba.dataActors = make(map[string]*DataActor)
+	ba.lastFlush = time.Now().UnixMilli()
+	TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	return nil
 }
 

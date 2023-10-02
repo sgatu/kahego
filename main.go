@@ -10,34 +10,70 @@ import (
 	"sync"
 	"syscall"
 
+	"slices"
+
 	"github.com/inhies/go-bytesize"
+	log "github.com/sirupsen/logrus"
+	easy "github.com/t-tomalak/logrus-easy-formatter"
 	"sgatu.com/kahego/src/actors"
 	"sgatu.com/kahego/src/config"
 )
 
+func initLogger(level string) {
+	log.SetOutput(os.Stdout)
+	formatter := &easy.Formatter{
+		TimestampFormat: "2006-01-02 15:04:05",
+		LogFormat:       "%lvl% | %time% | %msg%\n",
+	}
+	log.SetFormatter(formatter)
+	allowedLevels := []string{"INFO", "WARN", "ERROR", "FATAL", "DEBUG", "TRACE"}
+	if !slices.Contains(allowedLevels, level) {
+		level = "INFO"
+	}
+	log.Info(fmt.Sprintf("Setting log level to %s", level))
+	switch level {
+	case "INFO":
+		log.SetLevel(log.InfoLevel)
+	case "WARN":
+		log.SetLevel(log.WarnLevel)
+	case "ERROR":
+		log.SetLevel(log.ErrorLevel)
+	case "FATAL":
+		log.SetLevel(log.FatalLevel)
+	case "DEBUG":
+		log.SetLevel(log.DebugLevel)
+	case "TRACE":
+		log.SetLevel(log.TraceLevel)
+	default:
+		log.SetLevel(log.InfoLevel)
+	}
+}
 func main() {
+
 	envConfig, err := config.LoadConfig()
 	if err != nil {
-		fmt.Println("Environment file missing or could not be loaded.\nAn environment variable \"environment\" MUST be defined and file .env.{environment}.local must exist.\nBy default {environment} is dev.")
+		log.Fatal("Environment file missing or could not be loaded.\nAn environment variable \"environment\" MUST be defined and file .env.{environment}.local must exist.\nBy default {environment} is dev.")
 		os.Exit(1)
 	}
-	fmt.Println("Setting max cpus usage to", envConfig.MaxCpus)
+	initLogger(os.Getenv("LOG_LEVEL"))
+	log.Info("Setting max cpus usage to ", envConfig.MaxCpus)
 	runtime.GOMAXPROCS(envConfig.MaxCpus)
-	fmt.Println("Setting max memory usage to", bytesize.New(float64(envConfig.MaxMemory)))
+	log.Info("Setting max memory usage to ", bytesize.New(float64(envConfig.MaxMemory)))
 	debug.SetMemoryLimit(envConfig.MaxMemory)
+
 	if _, err := os.Stat(envConfig.SocketPath); err == nil {
-		fmt.Println("Socket file at", envConfig.SocketPath, "already exists. Check if not another process is already running, if so close it else try to delete it.")
+		log.Fatal(fmt.Sprintf("Socket file at %s already exists. Check if not another process is already running, if so close it else try to delete it.", envConfig.SocketPath))
 		os.Exit(1)
 	}
 	bucketsConfig, err := config.LoadBucketsConfig(envConfig)
 	if err == nil {
-		fmt.Println("Loaded buckets and streams config:")
+		log.Trace("Loaded buckets and streams config:")
 		cfgJson, err := json.MarshalIndent(bucketsConfig, "", " ")
 		if err == nil {
-			fmt.Println(string(cfgJson))
+			log.Trace(string(cfgJson))
 		}
 	} else {
-		fmt.Println("Could not load buckets and streams config due to err ->", err)
+		log.Fatal("Could not load buckets and streams config due to err ->", err)
 		os.Exit(1)
 	}
 	bucketsWaitGroup := &sync.WaitGroup{}
@@ -71,8 +107,8 @@ func main() {
 	<-closeSignalCh
 	closeAll()
 
-	fmt.Fprintln(os.Stderr, "Waiting listener to close")
+	log.Info("Waiting listener to close")
 	wgListener.Wait()
-	fmt.Fprintln(os.Stderr, "Waiting buckets to close")
+	log.Info("Waiting buckets to close")
 	bucketsWaitGroup.Wait()
 }

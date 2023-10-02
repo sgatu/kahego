@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/streams"
 )
 
@@ -26,7 +27,7 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 			return Stop, nil
 		}
 		if len < 4 {
-			fmt.Println("Invalid data length")
+			log.Trace("Invalid message length received from client, it should be 4 bytes.")
 			return Continue, nil
 		}
 		msgLen := binary.LittleEndian.Uint32(msg)
@@ -51,7 +52,7 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 		}
 		Tell(cha, message)
 	default:
-		fmt.Printf("Unknown message received %T by ClientHandlerActor\n", message)
+		log.Trace(fmt.Sprintf("Unknown message received %T by ClientHandlerActor", message))
 	}
 	return Continue, nil
 }

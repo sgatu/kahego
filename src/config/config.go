@@ -8,6 +8,7 @@ import (
 
 	"github.com/inhies/go-bytesize"
 	"github.com/joho/godotenv"
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
@@ -50,7 +51,7 @@ type BucketConfig struct {
 	BucketId      string
 	StreamConfigs map[string]StreamConfig
 	Batch         int32
-	BatchTimeout  int32
+	BatchTimeout  int64
 }
 type MappedConfig struct {
 	Buckets       map[string]BucketConfig
@@ -93,12 +94,12 @@ func LoadConfig() (Config, error) {
 }
 func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 
-	fmt.Println("Loading buckets file located at", envConfig.BucketsFile)
+	log.Info("Loading buckets file located at ", envConfig.BucketsFile)
 	var bucketsConfig bucketsConfig
 	var mappedConfig MappedConfig
 	configFile, err := os.Open(envConfig.BucketsFile)
 	if err != nil {
-		return &mappedConfig, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
+		return nil, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
 	}
 	mappedConfig = MappedConfig{Buckets: make(map[string]BucketConfig), DefaultBucket: nil}
 	defer configFile.Close()
@@ -135,7 +136,7 @@ func createBucketConfig(bucketConfig *jsonBucketConfig, streamsConfig map[string
 	return BucketConfig{
 		StreamConfigs: bucketStreamConfigs,
 		Batch:         bucketConfig.Batch,
-		BatchTimeout:  bucketConfig.BatchTimeout,
+		BatchTimeout:  int64(bucketConfig.BatchTimeout),
 		BucketId:      bucketConfig.Id,
 	}
 }

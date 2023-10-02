@@ -28,7 +28,7 @@
                 "path":"/backup/",
                 "maxFiles":"10",
                 "sizeRotate":"100MB",
-                "fileNameTemplate":"{bucket}{PS}{ts}.bckstm"
+                "fileNameTemplate":"{bucket}{PS}{hostname}-{ts}.bckstm"
             }
         }
     },

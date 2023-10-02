@@ -41,6 +41,10 @@ func (stream *FileStream) getFilesPattern() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", "*")
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
+	hostname, err := os.Hostname()
+	if err == nil {
+		fileName = strings.ReplaceAll(fileName, "{hostname}", hostname)
+	}
 	fileDirs := strings.Split(fileName, string(os.PathSeparator))
 	fullPath := stream.path
 	if fullPath[len(fullPath)-1] == os.PathSeparator {
@@ -59,6 +63,12 @@ func (stream *FileStream) getNextFileName() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
+	hostname, err := os.Hostname()
+	if err == nil {
+		fileName = strings.ReplaceAll(fileName, "{hostname}", hostname)
+	} else {
+		fmt.Println(err)
+	}
 	fileDirs := strings.Split(fileName, string(os.PathSeparator))
 	fullPath := stream.path
 	if fullPath[len(fullPath)-1] == os.PathSeparator {
@@ -75,7 +85,6 @@ func (stream *FileStream) getNextFileName() (string, string) {
 }
 func (stream *FileStream) rotateFile() error {
 	if stream.writtenBytes >= stream.rotateLength || stream.file == nil {
-		fmt.Printf("Rotating file because of %d >= %d\n", stream.writtenBytes, stream.rotateLength)
 		stream.writtenBytes = 0
 		if stream.file != nil {
 			stream.file.Sync()

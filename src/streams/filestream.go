@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -29,8 +30,6 @@ type FileStream struct {
 	writtenBytes     int32
 	rotateLength     int32
 	maxFiles         uint32
-	slice            float32
-	hasError         bool
 	lastErr          error
 }
 
@@ -101,7 +100,6 @@ func (stream *FileStream) rotateFile() error {
 		stream.filesPaths.Push(&datastructures.Node[string]{Value: fullPath})
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			stream.hasError = true
 			stream.lastErr = err
 			return err
 		}
@@ -138,7 +136,6 @@ func (stream *FileStream) Flush() error {
 	err := stream.flush()
 	if err != nil {
 		stream.lastErr = err
-		stream.hasError = true
 	}
 	return err
 }
@@ -151,19 +148,31 @@ func (stream *FileStream) Close() error {
 	}
 	return nil
 }
-func (stream *FileStream) Init() error {
-	stream.hasError = false
-	stream.lastErr = nil
+func (stream *FileStream) recoverExistingFiles() error {
 	dir, filePattern := stream.getFilesPattern()
 	files, rerr := os.ReadDir(dir)
-	if rerr == nil {
-		for _, file := range files {
-			if _, err := filepath.Match(filePattern, file.Name()); err == nil {
-				log.Trace("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
-				stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
-			}
+	if rerr != nil {
+		return rerr
+	}
+	sort.Slice(files, func(i, j int) bool {
+		info1, err1 := files[i].Info()
+		info2, err2 := files[j].Info()
+		if err1 == nil && err2 == nil {
+			return info1.ModTime().Before(info2.ModTime())
+		}
+		return false
+	})
+	for _, file := range files {
+		if _, err := filepath.Match(filePattern, file.Name()); err == nil {
+			log.Trace("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
+			stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
 		}
 	}
+	return nil
+}
+func (stream *FileStream) Init() error {
+	stream.lastErr = nil
+	stream.recoverExistingFiles()
 	err := stream.rotateFile()
 	if err != nil {
 		return err
@@ -171,7 +180,7 @@ func (stream *FileStream) Init() error {
 	return nil
 }
 func (stream *FileStream) HasError() bool {
-	return stream.hasError
+	return stream.lastErr != nil
 }
 func (stream *FileStream) GetError() error {
 	return stream.lastErr
@@ -230,8 +239,6 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		rotateLength:     rotateLength,
 		fileNameTemplate: fileNameTemplate,
 		bucketId:         bucket,
-		hasError:         false,
-		slice:            streamConfig.Slice,
 		maxFiles:         maxFiles,
 	}
 	return fs, nil

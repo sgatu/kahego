@@ -37,6 +37,7 @@ func (stream *FileStream) Push(msg *Message) error {
 	stream.queue.Push(&datastructures.Node[*Message]{Value: msg})
 	return nil
 }
+
 func (stream *FileStream) getFilesPattern() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", "*")
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
@@ -59,6 +60,7 @@ func (stream *FileStream) getFilesPattern() (string, string) {
 	}
 	return fullPath, fileName
 }
+
 func (stream *FileStream) getNextFileName() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
@@ -83,6 +85,7 @@ func (stream *FileStream) getNextFileName() (string, string) {
 	}
 	return fullPath, fileName
 }
+
 func (stream *FileStream) rotateFile() error {
 	if stream.writtenBytes >= stream.rotateLength || stream.file == nil {
 		stream.writtenBytes = 0
@@ -108,6 +111,7 @@ func (stream *FileStream) rotateFile() error {
 	return nil
 
 }
+
 func (stream *FileStream) flush() error {
 	length := stream.queue.Len()
 	for i := 0; i < int(length); i++ {
@@ -131,6 +135,7 @@ func (stream *FileStream) flush() error {
 	}
 	return stream.file.Sync()
 }
+
 func (stream *FileStream) Flush() error {
 	log.Debug(fmt.Sprintf("Flushing fileStream with %d pending messages", stream.queue.Len()))
 	err := stream.flush()
@@ -139,15 +144,18 @@ func (stream *FileStream) Flush() error {
 	}
 	return err
 }
+
 func (stream *FileStream) Len() uint32 {
 	return stream.queue.Len()
 }
+
 func (stream *FileStream) Close() error {
 	if stream.file != nil {
 		stream.file.Close()
 	}
 	return nil
 }
+
 func (stream *FileStream) recoverExistingFiles() error {
 	dir, filePattern := stream.getFilesPattern()
 	files, rerr := os.ReadDir(dir)
@@ -170,6 +178,7 @@ func (stream *FileStream) recoverExistingFiles() error {
 	}
 	return nil
 }
+
 func (stream *FileStream) Init() error {
 	stream.lastErr = nil
 	stream.recoverExistingFiles()
@@ -179,15 +188,19 @@ func (stream *FileStream) Init() error {
 	}
 	return nil
 }
+
 func (stream *FileStream) HasError() bool {
 	return stream.lastErr != nil
 }
+
 func (stream *FileStream) GetError() error {
 	return stream.lastErr
 }
+
 func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
 	return &stream.queue
 }
+
 func isLastCharNumeric(s string) bool {
 	if len(s) == 0 {
 		return false

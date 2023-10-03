@@ -40,7 +40,7 @@ type KafkaStream struct {
 	topic        string
 	deliveryChan chan kafka.Event
 	lastErr      *KafkaStreamError
-	errorLock    sync.Mutex
+	errorLock    sync.Mutex //needed since kafka events go in a different goroutine
 }
 
 func (stream *KafkaStream) setErrorMode(_type KafkaErrorType, err error) {

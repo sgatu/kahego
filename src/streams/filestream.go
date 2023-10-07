@@ -34,7 +34,7 @@ type FileStream struct {
 }
 
 func (stream *FileStream) Push(msg *Message) error {
-	stream.queue.Push(&datastructures.Node[*Message]{Value: msg})
+	stream.queue.Push(msg)
 	return nil
 }
 
@@ -100,7 +100,7 @@ func (stream *FileStream) rotateFile() error {
 		filePath, fileName := stream.getNextFileName()
 		os.MkdirAll(filePath, 0777)
 		fullPath := filePath + string(os.PathSeparator) + fileName
-		stream.filesPaths.Push(&datastructures.Node[string]{Value: fullPath})
+		stream.filesPaths.Push(fullPath)
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			stream.lastErr = err
@@ -173,7 +173,7 @@ func (stream *FileStream) recoverExistingFiles() error {
 	for _, file := range files {
 		if _, err := filepath.Match(filePattern, file.Name()); err == nil {
 			log.Trace("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
-			stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
+			stream.filesPaths.Push(dir + string(os.PathSeparator) + file.Name())
 		}
 	}
 	return nil

@@ -157,6 +157,7 @@ func InitializeAndStart(actor Actor) error {
 	}()
 	return nil
 }
+
 func Tell(actor Actor, message interface{}) {
 	go func(act Actor, msg interface{}) {
 		if actor.GetChannel() != nil {
@@ -173,6 +174,7 @@ func Tell(actor Actor, message interface{}) {
 	}(actor, message)
 
 }
+
 func TellSafe(actor Actor, message interface{}) {
 	go func(act Actor, msg interface{}) {
 		if actor.GetChannel() != nil {

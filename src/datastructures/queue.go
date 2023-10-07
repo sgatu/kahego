@@ -7,6 +7,7 @@ type Queue[T interface{}] struct {
 	last  *Node[T]
 	len   uint32
 }
+
 type Node[T interface{}] struct {
 	Value T
 	next  *Node[T]
@@ -15,18 +16,24 @@ type Node[T interface{}] struct {
 func NewQueue[T interface{}]() *Queue[T] {
 	return &Queue[T]{len: 0}
 }
-func (queue *Queue[T]) Push(node *Node[T]) {
+
+func (queue *Queue[T]) push(node *Node[T]) {
+	defer func() { queue.len++ }()
 	if queue.first == nil {
 		queue.first = node
+		queue.first.next = nil
 		queue.last = node
-		queue.len++
 		return
 	}
 	last := queue.last
 	last.next = node
 	queue.last = node
-	queue.len++
 }
+
+func (queue *Queue[T]) Push(value T) {
+	queue.push(&Node[T]{Value: value})
+}
+
 func (queue *Queue[T]) Pop() (*Node[T], error) {
 	if queue.len == 0 || queue.first == nil {
 		return nil, errors.New("empty queue")
@@ -34,14 +41,19 @@ func (queue *Queue[T]) Pop() (*Node[T], error) {
 	retVal := queue.first
 	queue.first = retVal.next
 	queue.len--
+	if queue.len == 0 {
+		queue.last = nil
+	}
 	return retVal, nil
 }
+
 func (queue *Queue[T]) Len() uint32 {
 	return queue.len
 }
 
 func (queue *Queue[T]) Clear() {
-	for i := 0; i < int(queue.Len()); i++ {
+	len := queue.Len()
+	for i := 0; i < int(len); i++ {
 		queue.Pop()
 	}
 }

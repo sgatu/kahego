@@ -64,7 +64,7 @@ func (cha *ClientHandlerActor) OnStart() error {
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
-	log.Printf("Stopping client %T", cha)
+	log.Trace(fmt.Sprintf("Stopping client %T", cha))
 	cha.client.Close()
 	Tell(cha.GetSupervisor(), ClientClosedMessage{Id: cha.GetId()})
 	return nil

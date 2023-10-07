@@ -52,7 +52,7 @@ func (stream *KafkaStream) setErrorMode(_type KafkaErrorType, err error) {
 
 }
 func (stream *KafkaStream) Push(msg *Message) error {
-	stream.queue.Push(&datastructures.Node[*Message]{Value: msg})
+	stream.queue.Push(msg)
 	err := stream.kafkaConn.Produce(
 		&kafka.Message{
 			TopicPartition: kafka.TopicPartition{Topic: &stream.topic, Partition: kafka.PartitionAny},
@@ -68,14 +68,17 @@ func (stream *KafkaStream) Push(msg *Message) error {
 	}
 	return err
 }
+
 func (stream *KafkaStream) Flush() error {
 	stream.kafkaConn.Flush(300)
 	stream.queue.Clear()
 	return nil
 }
+
 func (stream *KafkaStream) Len() uint32 {
 	return uint32(stream.kafkaConn.Len())
 }
+
 func (stream *KafkaStream) Close() error {
 	if !stream.HasError() && stream.kafkaConn.Len() > 0 {
 		for {
@@ -115,8 +118,8 @@ func (stream *KafkaStream) deliveryManagement() {
 			}
 		}
 	}
-
 }
+
 func (stream *KafkaStream) testBrokers() error {
 	brokersCfgVal, err := stream.kafkaConfig.Get("bootstrap.servers", "")
 	if err == nil {

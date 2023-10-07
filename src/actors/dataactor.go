@@ -28,11 +28,13 @@ type DataActor struct {
 	backupActorWaitGroup *sync.WaitGroup
 	slice                float32
 }
+
 type DataActorError struct {
 	Id  string
 	Err error
 	Who Actor
 }
+
 type FlushDataMessage struct{}
 type ReviewStream struct{}
 type WorkingMode int
@@ -55,6 +57,7 @@ func (da *DataActor) OnStart() error {
 	}
 	return nil
 }
+
 func (da *DataActor) OnStop() error {
 	log.Debug(fmt.Sprintf("Stopping data actor - DataActor Id %s, BucketId %s", da.GetId(), da.BucketId))
 	if da.backupActor != nil {
@@ -101,6 +104,7 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
+
 func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 	if da.backupActor == nil {
 		da.transform(ErrorWorkinMode, fmt.Errorf("no backup actor for stream %s", da.GetId()))
@@ -126,6 +130,7 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
+
 func (da *DataActor) ErrorMode(msg interface{}) (WorkResult, error) {
 	switch msg := msg.(type) {
 	case PoisonPill:
@@ -135,6 +140,7 @@ func (da *DataActor) ErrorMode(msg interface{}) (WorkResult, error) {
 	}
 	return Continue, nil
 }
+
 func (da DataActor) GetWorkMethod() DoWorkMethod {
 	return da.currentMode
 }
@@ -188,6 +194,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 	}
 	return nil
 }
+
 func (da *DataActor) initializeStream() error {
 	da.slice = da.StreamConfig.Slice
 	strm, err := streams.GetStream(da.StreamConfig, da.BucketId)

@@ -42,8 +42,8 @@ func GetMessage(msg []byte) (*Message, error) {
 		Key:    key,
 		Data:   data,
 	}, nil
-
 }
+
 func (msg *Message) Serialize() []byte {
 	totalLen := len(msg.Data) + len(msg.Key) + len(msg.Bucket) + 2
 	data := make([]byte, 0, 4+totalLen)

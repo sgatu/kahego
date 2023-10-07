@@ -14,7 +14,7 @@ type BucketManagerActor struct {
 	WaitableActor
 	OrderedMessagesActor
 	bucketActors        map[string]Actor
-	BucketsConfig       map[string]config.BucketConfig
+	BucketsConfig       map[string]*config.BucketConfig
 	DefaultBucketConfig *config.BucketConfig
 	waitGroupBuckets    *sync.WaitGroup
 }
@@ -25,7 +25,7 @@ func (dbma *BucketManagerActor) getBucket(bucket string) (Actor, error) {
 	}
 	var config *config.BucketConfig = nil
 	if bucketConfig, ok := dbma.BucketsConfig[bucket]; ok {
-		config = &bucketConfig
+		config = bucketConfig
 	} else {
 		config = dbma.DefaultBucketConfig
 	}

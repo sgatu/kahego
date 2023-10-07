@@ -65,7 +65,7 @@ func main() {
 		log.Fatal(fmt.Sprintf("Socket file at %s already exists. Check if not another process is already running, if so close it else try to delete it.", envConfig.SocketPath))
 		os.Exit(1)
 	}
-	bucketsConfig, err := config.LoadBucketsConfig(envConfig)
+	bucketsConfig, err := config.LoadBucketsConfigFromEnv(envConfig)
 	if err == nil {
 		log.Trace("Loaded buckets and streams config:")
 		cfgJson, err := json.MarshalIndent(bucketsConfig, "", " ")

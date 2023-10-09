@@ -6,6 +6,7 @@ build:
 run:
 	@cd dist; ./kahego
 test:
+	go clean -testcache
 	go test ./...
 test-debug:
 	go clean -testcache

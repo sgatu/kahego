@@ -47,7 +47,7 @@ func (baseActor *BaseActor) CloseChannel() {
 }
 func (baseActor *BaseActor) GetChannelSync() chan struct{} {
 	if baseActor.doneChan == nil {
-		baseActor.doneChan = make(chan struct{})
+		baseActor.doneChan = make(chan struct{}, 1)
 	}
 	return baseActor.doneChan
 }
@@ -94,10 +94,8 @@ func (baseWaitableActor *BaseWaitableActor) GetWaitGroup() *sync.WaitGroup {
 func InitializeAndStart(actor Actor) error {
 	log.Debugf("Starting actor %T", actor)
 	actor.Init()
-	go func() {
-		// first message processing
-		actor.GetChannelSync() <- struct{}{}
-	}()
+	// first message processing
+	actor.GetChannelSync() <- struct{}{}
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {

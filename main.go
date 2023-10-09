@@ -31,8 +31,7 @@ func initLogger(level string) {
 	}
 	log.Infof("Setting log level to %s", level)
 	switch level {
-	case "INFO":
-		log.SetLevel(log.InfoLevel)
+
 	case "WARN":
 		log.SetLevel(log.WarnLevel)
 	case "ERROR":
@@ -43,6 +42,7 @@ func initLogger(level string) {
 		log.SetLevel(log.DebugLevel)
 	case "TRACE":
 		log.SetLevel(log.TraceLevel)
+	case "INFO":
 	default:
 		log.SetLevel(log.InfoLevel)
 	}

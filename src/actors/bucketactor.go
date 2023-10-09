@@ -40,8 +40,7 @@ func (ba *BucketActor) getStreamActor(streamId string) (*DataActor, error) {
 			WaitableActor: &BaseWaitableActor{
 				WaitGroup: ba.waitGroupStreams,
 			},
-			OrderedMessagesActor: &BaseOrderedMessagesActor{},
-			backupActorConfig:    streamConfig.Backup,
+			backupActorConfig: streamConfig.Backup,
 		}
 		err := InitializeAndStart(&dataActor)
 		if err != nil {
@@ -86,7 +85,7 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 			}
 			ba.lastFlush = time.Now().UnixMilli()
 		}
-		TellInSafe(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
+		TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	case DataActorError:
 		ba.removeDataActor(msg.Id)
 		Tell(msg.Who, PoisonPill{})
@@ -114,7 +113,7 @@ func (ba *BucketActor) OnStart() error {
 	ba.processed = 0
 	ba.dataActors = make(map[string]*DataActor)
 	ba.lastFlush = time.Now().UnixMilli()
-	TellInSafe(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
+	TellIn(ba, CheckFlushNeeded{}, time.Duration(ba.BucketConfig.BatchTimeout)*time.Millisecond)
 	return nil
 }
 

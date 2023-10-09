@@ -12,7 +12,6 @@ import (
 type AcceptClientActor struct {
 	Actor
 	WaitableActor
-	OrderedMessagesActor
 	BucketMangerActor Actor
 	SocketPath        string
 	socket            *net.UnixListener
@@ -64,9 +63,8 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 					supervisor: aca,
 					id:         nextClientId,
 				},
-				OrderedMessagesActor: &BaseOrderedMessagesActor{},
-				client:               conn,
-				bucketMangerActor:    aca.BucketMangerActor,
+				client:            conn,
+				bucketMangerActor: aca.BucketMangerActor,
 			}
 			aca.clients[nextClientId] = handler
 			aca.clientIdCounter += 1

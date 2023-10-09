@@ -3,6 +3,7 @@ package streams
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,12 +35,13 @@ type FileStream struct {
 }
 
 func (stream *FileStream) Push(msg *Message) error {
-	stream.queue.Push(&datastructures.Node[*Message]{Value: msg})
+	stream.queue.Push(msg)
 	return nil
 }
 
 func (stream *FileStream) getFilesPattern() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", "*")
+	fileName = strings.ReplaceAll(fileName, "{rand}", "*")
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
 	hostname, err := os.Hostname()
@@ -60,9 +62,17 @@ func (stream *FileStream) getFilesPattern() (string, string) {
 	}
 	return fullPath, fileName
 }
-
+func randStr() string {
+	charset := "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
 func (stream *FileStream) getNextFileName() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
+	fileName = strings.ReplaceAll(fileName, "{rand}", randStr())
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
 	hostname, err := os.Hostname()
@@ -100,7 +110,7 @@ func (stream *FileStream) rotateFile() error {
 		filePath, fileName := stream.getNextFileName()
 		os.MkdirAll(filePath, 0777)
 		fullPath := filePath + string(os.PathSeparator) + fileName
-		stream.filesPaths.Push(&datastructures.Node[string]{Value: fullPath})
+		stream.filesPaths.Push(fullPath)
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			stream.lastErr = err
@@ -123,7 +133,7 @@ func (stream *FileStream) flush() error {
 		}
 		node, err := stream.queue.Pop()
 		if err == nil {
-			serializedData := node.Value.Serialize()
+			serializedData := node.Value.Serialize(true)
 			if _, err := stream.file.Write(serializedData); err != nil {
 				stream.file.Sync()
 				return err
@@ -173,7 +183,7 @@ func (stream *FileStream) recoverExistingFiles() error {
 	for _, file := range files {
 		if _, err := filepath.Match(filePattern, file.Name()); err == nil {
 			log.Trace("Found existing file at ", dir+string(os.PathSeparator)+file.Name())
-			stream.filesPaths.Push(&datastructures.Node[string]{Value: dir + string(os.PathSeparator) + file.Name()})
+			stream.filesPaths.Push(dir + string(os.PathSeparator) + file.Name())
 		}
 	}
 	return nil
@@ -253,6 +263,8 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		fileNameTemplate: fileNameTemplate,
 		bucketId:         bucket,
 		maxFiles:         maxFiles,
+		queue:            datastructures.NewQueue[*Message](),
+		filesPaths:       datastructures.NewQueue[string](),
 	}
 	return fs, nil
 }

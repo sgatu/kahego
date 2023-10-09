@@ -26,9 +26,11 @@ type Actor interface {
 	GetWorkMethod() DoWorkMethod
 	GetChannel() chan interface{}
 	CloseChannel()
+	GetChannelSync() chan struct{}
 }
 type BaseActor struct {
-	recvCh chan interface{}
+	recvCh   chan interface{}
+	doneChan chan struct{}
 }
 
 func (baseActor *BaseActor) Init() {
@@ -43,7 +45,12 @@ func (baseActor *BaseActor) CloseChannel() {
 	baseActor.recvCh = nil
 	close(c)
 }
-
+func (baseActor *BaseActor) GetChannelSync() chan struct{} {
+	if baseActor.doneChan == nil {
+		baseActor.doneChan = make(chan struct{})
+	}
+	return baseActor.doneChan
+}
 func (baseActor *BaseActor) GetWorkMethod() DoWorkMethod {
 	return func(msg interface{}) (WorkResult, error) {
 		log.Warn(fmt.Sprintf("BaseActor message processing, received a %T, you should override this method.", msg))
@@ -84,29 +91,13 @@ func (baseWaitableActor *BaseWaitableActor) GetWaitGroup() *sync.WaitGroup {
 	return baseWaitableActor.WaitGroup
 }
 
-type OrderedMessagesActor interface {
-	GetChannelSync() chan struct{}
-}
-type BaseOrderedMessagesActor struct {
-	doneChan chan struct{}
-}
-
-func (baseOrderedMessagesActorV2 *BaseOrderedMessagesActor) GetChannelSync() chan struct{} {
-	if baseOrderedMessagesActorV2.doneChan == nil {
-		baseOrderedMessagesActorV2.doneChan = make(chan struct{})
-	}
-	return baseOrderedMessagesActorV2.doneChan
-}
-
 func InitializeAndStart(actor Actor) error {
 	log.Debug(fmt.Sprintf("Starting actor %T", actor))
 	actor.Init()
-	if oma, ok := actor.(OrderedMessagesActor); ok {
-		go func() {
-			// first message processing
-			oma.GetChannelSync() <- struct{}{}
-		}()
-	}
+	go func() {
+		// first message processing
+		actor.GetChannelSync() <- struct{}{}
+	}()
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {
@@ -138,9 +129,7 @@ func InitializeAndStart(actor Actor) error {
 				}
 				break
 			}
-			if oma, ok := actor.(OrderedMessagesActor); ok {
-				oma.GetChannelSync() <- struct{}{}
-			}
+			actor.GetChannelSync() <- struct{}{}
 		}
 		if ia, ok := actor.(InitializableActor); ok {
 			err := ia.OnStop()
@@ -150,58 +139,26 @@ func InitializeAndStart(actor Actor) error {
 			}
 		}
 
-		if oma, ok := actor.(OrderedMessagesActor); ok {
-			close(oma.GetChannelSync())
-		}
+		close(actor.GetChannelSync())
 		actor.CloseChannel()
 	}()
 	return nil
 }
+
 func Tell(actor Actor, message interface{}) {
 	go func(act Actor, msg interface{}) {
 		if actor.GetChannel() != nil {
-			if orderedActor, ok := act.(OrderedMessagesActor); ok {
-				if _, more := <-orderedActor.GetChannelSync(); more {
-					act.GetChannel() <- message
-				}
-			} else {
-				log.Trace(fmt.Sprintf("Telling %T a message %T", act, msg))
+			if _, more := <-act.GetChannelSync(); more {
 				act.GetChannel() <- message
 			}
-
 		}
 	}(actor, message)
 
 }
-func TellSafe(actor Actor, message interface{}) {
-	go func(act Actor, msg interface{}) {
-		if actor.GetChannel() != nil {
-			defer func() {
-				if r := recover(); r != nil {
-					log.Debug(fmt.Sprintf("Tell error recovered, %s", r))
-				}
-			}()
-			if orderedActor, ok := act.(OrderedMessagesActor); ok {
-				if _, more := <-orderedActor.GetChannelSync(); more {
-					act.GetChannel() <- message
-				}
-			} else {
-				act.GetChannel() <- message
-			}
 
-		}
-	}(actor, message)
-
-}
 func TellIn(actor Actor, message interface{}, wait time.Duration) {
 	go func(actor Actor, message interface{}, wait time.Duration) {
 		<-time.After(wait)
 		Tell(actor, message)
-	}(actor, message, wait)
-}
-func TellInSafe(actor Actor, message interface{}, wait time.Duration) {
-	go func(actor Actor, message interface{}, wait time.Duration) {
-		<-time.After(wait)
-		TellSafe(actor, message)
 	}(actor, message, wait)
 }

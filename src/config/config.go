@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/inhies/go-bytesize"
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
 )
 
-type Config struct {
+type EnvConfig struct {
 	BucketsFile string
 	SocketPath  string
 	MaxCpus     int
@@ -54,7 +55,7 @@ type BucketConfig struct {
 	BatchTimeout  int64
 }
 type MappedConfig struct {
-	Buckets       map[string]BucketConfig
+	Buckets       map[string]*BucketConfig
 	DefaultBucket *BucketConfig
 }
 
@@ -64,14 +65,15 @@ func getConfig(expected string, _default string) string {
 	}
 	return expected
 }
-func LoadConfig() (Config, error) {
+
+func LoadConfig() (EnvConfig, error) {
 	env := os.Getenv("environment")
 	if env == "" {
 		env = "dev"
 	}
 	err := godotenv.Load(".env." + env + ".local")
 	if err != nil {
-		return Config{}, err
+		return EnvConfig{}, err
 	}
 	bucketsFile := getConfig(os.Getenv("BUCKETS_FILE"), "./buckets.json")
 	socketFile := getConfig(os.Getenv("SOCKET"), "/tmp/kahego.sock")
@@ -85,26 +87,25 @@ func LoadConfig() (Config, error) {
 		maxMemory = mm
 	}
 
-	return Config{
+	return EnvConfig{
 		BucketsFile: bucketsFile,
 		SocketPath:  socketFile,
 		MaxCpus:     int(maxCpus),
 		MaxMemory:   int64(maxMemory),
 	}, nil
 }
-func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
-
-	log.Info("Loading buckets file located at ", envConfig.BucketsFile)
+func LoadBucketsConfigFromString(ConfigStr string) (*MappedConfig, error) {
 	var bucketsConfig bucketsConfig
-	var mappedConfig MappedConfig
-	configFile, err := os.Open(envConfig.BucketsFile)
-	if err != nil {
-		return nil, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
-	}
-	mappedConfig = MappedConfig{Buckets: make(map[string]BucketConfig), DefaultBucket: nil}
-	defer configFile.Close()
+
+	configFile := strings.NewReader(ConfigStr)
 	jsonParser := json.NewDecoder(configFile)
 	jsonParser.Decode(&bucketsConfig)
+	if len(bucketsConfig.Streams) == 0 {
+		return nil, fmt.Errorf("no streams defined")
+	}
+	if len(bucketsConfig.Buckets) == 0 {
+		return nil, fmt.Errorf("no buckets defined")
+	}
 	streamsConfig := make(map[string]StreamConfig)
 	for k, stream := range bucketsConfig.Streams {
 		streamConfig := StreamConfig{Type: stream.Type, Slice: stream.Slice, Settings: stream.Settings}
@@ -116,27 +117,47 @@ func LoadBucketsConfig(envConfig Config) (*MappedConfig, error) {
 		}
 		streamsConfig[k] = streamConfig
 	}
+	mappedConfig := MappedConfig{Buckets: make(map[string]*BucketConfig), DefaultBucket: nil}
 	for _, bucket := range bucketsConfig.Buckets {
-		mappedConfig.Buckets[bucket.Id] = createBucketConfig(&bucket, streamsConfig)
+		newBucket, err := createBucketConfig(&bucket, streamsConfig)
+		if err != nil {
+			return nil, err
+		}
+		mappedConfig.Buckets[bucket.Id] = newBucket
 	}
 	if bucketsConfig.DefaultBucket != nil {
-		defaultBucket := createBucketConfig(bucketsConfig.DefaultBucket, streamsConfig)
-		mappedConfig.DefaultBucket = &defaultBucket
+		defaultBucket, err := createBucketConfig(bucketsConfig.DefaultBucket, streamsConfig)
+		if err != nil {
+			return nil, err
+		}
+		mappedConfig.DefaultBucket = defaultBucket
 	}
 	return &mappedConfig, nil
 }
-func createBucketConfig(bucketConfig *jsonBucketConfig, streamsConfig map[string]StreamConfig) BucketConfig {
+func LoadBucketsConfigFromEnv(envConfig EnvConfig) (*MappedConfig, error) {
+
+	log.Info("Loading buckets file located at ", envConfig.BucketsFile)
+	configFileData, err := os.ReadFile(envConfig.BucketsFile)
+	if err != nil {
+		return nil, fmt.Errorf("could not read buckets config file at %s -> %s", envConfig.BucketsFile, err)
+	}
+	return LoadBucketsConfigFromString(string(configFileData))
+}
+
+func createBucketConfig(bucketConfig *jsonBucketConfig, streamsConfig map[string]StreamConfig) (*BucketConfig, error) {
 	bucketStreamConfigs := make(map[string]StreamConfig)
 	for _, strmCfgId := range bucketConfig.Streams {
 		if strmCfg, ok := streamsConfig[strmCfgId]; ok {
 			bucketStreamConfigs[strmCfgId] = strmCfg
 		}
 	}
-
-	return BucketConfig{
+	if len(bucketStreamConfigs) == 0 {
+		return nil, fmt.Errorf("no streams defined for bucket")
+	}
+	return &BucketConfig{
 		StreamConfigs: bucketStreamConfigs,
 		Batch:         bucketConfig.Batch,
 		BatchTimeout:  int64(bucketConfig.BatchTimeout),
 		BucketId:      bucketConfig.Id,
-	}
+	}, nil
 }

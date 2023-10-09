@@ -83,6 +83,12 @@ This will create a dist folder which will contains all the necessary files:
     } 
 }
 ```
+File stream type accept the following placeholders for fileNameTemplate:
+
+{bucket} -> Bucket name
+{PS} -> Path separator, for example on Linux is "/" (without quotes)
+{hostname} -> Machine hostname value
+{rand} -> random 8 alphanumeric characters value
 
 Keep in mind that batch and batchTimeout have little effect on kafka streams due to being controlled by kafka configuration, to be more precise
 ```

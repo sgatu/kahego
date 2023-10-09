@@ -45,7 +45,7 @@ type KafkaStream struct {
 
 func (stream *KafkaStream) setErrorMode(_type KafkaErrorType, err error) {
 	kafkaError := &KafkaStreamError{err: err, errorType: _type}
-	log.Warn(fmt.Sprintf("Kafka Stream Error: %s", kafkaError))
+	log.Warnf("Kafka Stream Error: %s", kafkaError)
 	stream.errorLock.Lock()
 	defer stream.errorLock.Unlock()
 	stream.lastErr = kafkaError

@@ -54,7 +54,7 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 	case PoisonPill:
 		return Stop, nil
 	default:
-		log.Trace(fmt.Sprintf("Unknown message received %T by ClientHandlerActor", message))
+		log.Tracef("Unknown message received %T by ClientHandlerActor", message)
 	}
 	return Continue, nil
 }
@@ -63,7 +63,7 @@ func (cha *ClientHandlerActor) OnStart() error {
 	return nil
 }
 func (cha *ClientHandlerActor) OnStop() error {
-	log.Trace(fmt.Sprintf("Stopping client %T", cha))
+	log.Tracef("Stopping client %T", cha)
 	cha.client.Close()
 	Tell(cha.GetSupervisor(), ClientClosedMessage{Id: cha.GetId()})
 	return nil

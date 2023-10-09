@@ -44,7 +44,7 @@ func (ba *BucketActor) getStreamActor(streamId string) (*DataActor, error) {
 		}
 		err := InitializeAndStart(&dataActor)
 		if err != nil {
-			log.Warn(fmt.Sprintf("Could not initialize DataActor with id %s, bucketId %s", dataActor.GetId(), dataActor.BucketId))
+			log.Warnf("Could not initialize DataActor with id %s, bucketId %s", dataActor.GetId(), dataActor.BucketId)
 			return nil, err
 		}
 		ba.dataActors[streamId] = &dataActor
@@ -69,7 +69,7 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 		for id := range ba.BucketConfig.StreamConfigs {
 			actor, err := ba.getStreamActor(id)
 			if err != nil && !strings.Contains(err.Error(), "no configuration found") {
-				log.Warn(fmt.Sprintf("Could not forward message to DataActor - BucketId %s, StreamId %s, err %s", ba.BucketConfig.BucketId, id, err))
+				log.Warnf("Could not forward message to DataActor - BucketId %s, StreamId %s, err %s", ba.BucketConfig.BucketId, id, err)
 				return Stop, err
 			}
 			Tell(actor, msg)
@@ -90,12 +90,12 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 		ba.removeDataActor(msg.Id)
 		Tell(msg.Who, PoisonPill{})
 	case IllChildMessage:
-		log.Warn(fmt.Sprintf("DataActor is dead due to: %s", msg.Error))
+		log.Warnf("DataActor is dead due to: %s", msg.Error)
 		ba.removeDataActor(msg.Id)
 	case PoisonPill:
 		return Stop, nil
 	default:
-		log.Trace(fmt.Sprintf("Bucket actor received invalid message %T", msg))
+		log.Tracef("Bucket actor received invalid message %T", msg)
 	}
 	return Continue, nil
 }
@@ -108,7 +108,7 @@ func (ba *BucketActor) OnStop() error {
 	return nil
 }
 func (ba *BucketActor) OnStart() error {
-	log.Debug(fmt.Sprintf("Initialized bucket \"%s\" with config id \"%s\"", ba.BucketId, ba.BucketConfig.BucketId))
+	log.Debugf("Initialized bucket \"%s\" with config id \"%s\"", ba.BucketId, ba.BucketConfig.BucketId)
 	ba.waitGroupStreams = &sync.WaitGroup{}
 	ba.processed = 0
 	ba.dataActors = make(map[string]*DataActor)

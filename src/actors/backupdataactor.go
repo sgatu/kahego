@@ -1,8 +1,6 @@
 package actors
 
 import (
-	"fmt"
-
 	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
 	"sgatu.com/kahego/src/streams"
@@ -40,7 +38,7 @@ func (bda *backupDataActor) initializeStream() error {
 	return nil
 }
 func (bda *backupDataActor) OnStop() error {
-	log.Debug(fmt.Sprintf("Stopping backup data actor | DataActor %s of bucket %s", bda.GetId(), bda.BucketId))
+	log.Debugf("Stopping backup data actor | DataActor %s of bucket %s", bda.GetId(), bda.BucketId)
 	if bda.stream != nil {
 		bda.stream.Flush()
 		bda.stream.Close()
@@ -69,7 +67,7 @@ func (bda *backupDataActor) DoWork(msg interface{}) (WorkResult, error) {
 	case PoisonPill:
 		return Stop, nil
 	default:
-		log.Trace(fmt.Sprintf("Unknown message %T for backupDataActor", msg))
+		log.Tracef("Unknown message %T for backupDataActor", msg)
 	}
 	return Continue, nil
 }

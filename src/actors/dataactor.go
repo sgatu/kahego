@@ -58,7 +58,7 @@ func (da *DataActor) OnStart() error {
 }
 
 func (da *DataActor) OnStop() error {
-	log.Debug(fmt.Sprintf("Stopping data actor - DataActor Id %s, BucketId %s", da.GetId(), da.BucketId))
+	log.Debugf("Stopping data actor - DataActor Id %s, BucketId %s", da.GetId(), da.BucketId)
 	if da.backupActor != nil {
 		Tell(da.backupActor, PoisonPill{})
 		da.backupActorWaitGroup.Wait()
@@ -88,7 +88,7 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 			da.stream.Push(msg)
 		}
 	case FlushDataMessage:
-		log.Trace(fmt.Sprintf("DataActor Id %s, BucketId %s - FlushMessage", da.GetId(), da.BucketId))
+		log.Tracef("DataActor Id %s, BucketId %s - FlushMessage", da.GetId(), da.BucketId)
 		err := da.stream.Flush()
 		if err != nil {
 			errB := da.transform(BackupWorkingMode, nil)
@@ -99,7 +99,7 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 	case PoisonPill:
 		return Stop, nil
 	default:
-		log.Trace(fmt.Sprintf("Unknown message %T for DataActor | NormalMode", msg))
+		log.Tracef("Unknown message %T for DataActor | NormalMode", msg)
 	}
 	return Continue, nil
 }
@@ -124,7 +124,7 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 	case IllChildMessage:
 		da.transform(ErrorWorkinMode, fmt.Errorf("backup actor dead for stream %s", da.GetId()))
 	default:
-		log.Trace(fmt.Sprintf("Unknown message %T for DataActor | BackupMode", msg))
+		log.Tracef("Unknown message %T for DataActor | BackupMode", msg)
 
 	}
 	return Continue, nil
@@ -135,7 +135,7 @@ func (da *DataActor) ErrorMode(msg interface{}) (WorkResult, error) {
 	case PoisonPill:
 		return Stop, nil
 	default:
-		log.Trace(fmt.Sprintf("Unknown message %T for DataActor | ErrorMode", msg))
+		log.Tracef("Unknown message %T for DataActor | ErrorMode", msg)
 	}
 	return Continue, nil
 }
@@ -147,10 +147,10 @@ func (da DataActor) GetWorkMethod() DoWorkMethod {
 func (da *DataActor) transform(mode WorkingMode, err error) error {
 	switch mode {
 	case NormalWorkingMode:
-		log.Info(fmt.Sprintf("Data actor %s | bucket %s - transform normal mode", da.GetId(), da.BucketId))
+		log.Infof("Data actor %s | bucket %s - transform normal mode", da.GetId(), da.BucketId)
 		da.currentMode = da.NormalMode
 	case BackupWorkingMode:
-		log.Info(fmt.Sprintf("Data actor %s | bucket %s - transform backup mode", da.GetId(), da.BucketId))
+		log.Infof("Data actor %s | bucket %s - transform backup mode", da.GetId(), da.BucketId)
 		// move message to backup
 		if da.backupActorConfig == nil {
 			return fmt.Errorf("could not transform actor, no backup config available")
@@ -171,7 +171,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 		}
 		if da.stream != nil {
 			if da.stream.GetQueue().Len() > 0 {
-				log.Trace(fmt.Sprintf("DataActor id: %s, bucket: %s - Sending %d messages to backup", da.GetId(), da.BucketId, da.stream.GetQueue().Len()))
+				log.Tracef("DataActor id: %s, bucket: %s - Sending %d messages to backup", da.GetId(), da.BucketId, da.stream.GetQueue().Len())
 				len := da.stream.GetQueue().Len()
 				for i := 0; i < int(len); i++ {
 					if val, err := da.stream.GetQueue().Pop(); err != nil {
@@ -186,7 +186,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 		da.currentMode = da.BackupMode
 		TellIn(da, ReviewStream{}, time.Second*10)
 	case ErrorWorkinMode:
-		log.Warn(fmt.Sprintf("Data actor %s | bucket %s - transform error mode", da.GetId(), da.BucketId))
+		log.Warnf("Data actor %s | bucket %s - transform error mode", da.GetId(), da.BucketId)
 		da.currentMode = da.ErrorMode
 		err := fmt.Errorf("could not startup data actor %s", err.Error())
 		Tell(da.GetSupervisor(), DataActorError{Id: da.GetId(), Err: err, Who: da})

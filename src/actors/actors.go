@@ -53,7 +53,7 @@ func (baseActor *BaseActor) GetChannelSync() chan struct{} {
 }
 func (baseActor *BaseActor) GetWorkMethod() DoWorkMethod {
 	return func(msg interface{}) (WorkResult, error) {
-		log.Warn(fmt.Sprintf("BaseActor message processing, received a %T, you should override this method.", msg))
+		log.Warnf("BaseActor message processing, received a %T, you should override this method.", msg)
 		return Continue, nil
 	}
 }
@@ -92,7 +92,7 @@ func (baseWaitableActor *BaseWaitableActor) GetWaitGroup() *sync.WaitGroup {
 }
 
 func InitializeAndStart(actor Actor) error {
-	log.Debug(fmt.Sprintf("Starting actor %T", actor))
+	log.Debugf("Starting actor %T", actor)
 	actor.Init()
 	go func() {
 		// first message processing
@@ -101,7 +101,7 @@ func InitializeAndStart(actor Actor) error {
 	if ia, ok := actor.(InitializableActor); ok {
 		err := ia.OnStart()
 		if err != nil {
-			log.Warn(fmt.Sprintf("Could not start actor due to %s", err))
+			log.Warnf("Could not start actor due to %s", err)
 			return err
 		}
 	}
@@ -134,7 +134,7 @@ func InitializeAndStart(actor Actor) error {
 		if ia, ok := actor.(InitializableActor); ok {
 			err := ia.OnStop()
 			if err != nil {
-				log.Warn(fmt.Sprintf("Could not cleanup actor %s due to %s", fmt.Sprintf("%T", actor), err))
+				log.Warnf("Could not cleanup actor %s due to %s", fmt.Sprintf("%T", actor), err)
 				return
 			}
 		}

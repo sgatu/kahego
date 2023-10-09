@@ -56,10 +56,10 @@ func (dbma *BucketManagerActor) DoWork(msg interface{}) (WorkResult, error) {
 		log.Trace("BucketManagerActor received a PosionPill")
 		return Stop, nil
 	case IllChildMessage:
-		log.Warn(fmt.Sprintf("Bucket %s actor has died due to %s", msg.Id, msg.Error))
+		log.Warnf("Bucket %s actor has died due to %s", msg.Id, msg.Error)
 		delete(dbma.bucketActors, msg.Id)
 	default:
-		log.Warn(fmt.Sprintf("Bucket Manager Actor received invalid message %T", msg))
+		log.Warnf("Bucket Manager Actor received invalid message %T", msg)
 	}
 	return Continue, nil
 }

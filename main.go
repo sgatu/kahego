@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
@@ -30,7 +29,7 @@ func initLogger(level string) {
 	if !slices.Contains(allowedLevels, level) {
 		level = "INFO"
 	}
-	log.Info(fmt.Sprintf("Setting log level to %s", level))
+	log.Infof("Setting log level to %s", level)
 	switch level {
 	case "INFO":
 		log.SetLevel(log.InfoLevel)
@@ -62,7 +61,7 @@ func main() {
 	debug.SetMemoryLimit(envConfig.MaxMemory)
 
 	if _, err := os.Stat(envConfig.SocketPath); err == nil {
-		log.Fatal(fmt.Sprintf("Socket file at %s already exists. Check if not another process is already running, if so close it else try to delete it.", envConfig.SocketPath))
+		log.Fatalf("Socket file at %s already exists. Check if not another process is already running, if so close it else try to delete it.", envConfig.SocketPath)
 		os.Exit(1)
 	}
 	bucketsConfig, err := config.LoadBucketsConfigFromEnv(envConfig)

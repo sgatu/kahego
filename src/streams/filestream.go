@@ -147,7 +147,7 @@ func (stream *FileStream) flush() error {
 }
 
 func (stream *FileStream) Flush() error {
-	log.Debug(fmt.Sprintf("Flushing fileStream with %d pending messages", stream.queue.Len()))
+	log.Debugf("Flushing fileStream with %d pending messages", stream.queue.Len())
 	err := stream.flush()
 	if err != nil {
 		stream.lastErr = err

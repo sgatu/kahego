@@ -1,6 +1,8 @@
 package datastructures
 
-import "errors"
+import (
+	"errors"
+)
 
 type Queue[T interface{}] struct {
 	first *Node[T]
@@ -13,8 +15,8 @@ type Node[T interface{}] struct {
 	next  *Node[T]
 }
 
-func NewQueue[T interface{}]() *Queue[T] {
-	return &Queue[T]{len: 0}
+func NewQueue[T interface{}]() Queue[T] {
+	return Queue[T]{len: 0}
 }
 
 func (queue *Queue[T]) push(node *Node[T]) {

@@ -3,6 +3,7 @@ package streams
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,6 +41,7 @@ func (stream *FileStream) Push(msg *Message) error {
 
 func (stream *FileStream) getFilesPattern() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", "*")
+	fileName = strings.ReplaceAll(fileName, "{rand}", "*")
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
 	hostname, err := os.Hostname()
@@ -60,9 +62,17 @@ func (stream *FileStream) getFilesPattern() (string, string) {
 	}
 	return fullPath, fileName
 }
-
+func randStr() string {
+	charset := "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
 func (stream *FileStream) getNextFileName() (string, string) {
 	fileName := strings.ReplaceAll(stream.fileNameTemplate, "{ts}", fmt.Sprintf("%d", time.Now().Unix()))
+	fileName = strings.ReplaceAll(fileName, "{rand}", randStr())
 	fileName = strings.ReplaceAll(fileName, "{bucket}", stream.bucketId)
 	fileName = strings.ReplaceAll(fileName, "{PS}", string(os.PathSeparator))
 	hostname, err := os.Hostname()
@@ -253,6 +263,8 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		fileNameTemplate: fileNameTemplate,
 		bucketId:         bucket,
 		maxFiles:         maxFiles,
+		queue:            datastructures.NewQueue[*Message](),
+		filesPaths:       datastructures.NewQueue[string](),
 	}
 	return fs, nil
 }

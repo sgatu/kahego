@@ -15,16 +15,16 @@
                 "type":"file",
                 "settings": {
                     "path":"/tmp/",
-                    "maxFiles": "10",
-                    "sizeRotate": "10MB",
-                    "fileNameTemplate":"{bucket}/{ts}.bckstm"
+                    "maxFiles": "10", 
+                    "sizeRotate": "20MB",
+                    "fileNameTemplate":"{bucket}{PS}{ts}_{rand}.bckstm"
                 }
             }
         },
         "file_copy": {
-            "type":"file",
-            "slice":1.0,
-            "settings":{
+            "type": "file",
+            "slice": 1.0,
+            "settings": {
                 "path":"/backup/",
                 "maxFiles":"10",
                 "sizeRotate":"100MB",

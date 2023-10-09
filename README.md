@@ -50,7 +50,7 @@ This will create a dist folder which will contains all the necessary files:
                 "settings": { 
                     "path":"/tmp/", //path were file will be saved
                     "maxFiles": "10", //max concurrent files
-                    "sizeRotate": "10MB", //max file size
+                    "sizeRotate": "10MB", //max file size 
                     "fileNameTemplate":"{bucket}/{ts}.bckstm" // file name template, can be used {bucket}, {ts} and {hostname}, if it contains "{PS}" it will create subdirectories where {PS} is path separator
                 }
             }
@@ -85,10 +85,11 @@ This will create a dist folder which will contains all the necessary files:
 ```
 File stream type accept the following placeholders for fileNameTemplate:
 
-{bucket} -> Bucket name
-{PS} -> Path separator, for example on Linux is "/" (without quotes)
-{hostname} -> Machine hostname value
-{rand} -> random 8 alphanumeric characters value
+* {bucket} -> Bucket name
+* {PS} -> Path separator, for example on Linux is "/" (without quotes)
+* {hostname} -> Machine hostname value
+* {rand} -> random 8 alphanumeric characters value
+* {ts} -> current timestamp in seconds
 
 Keep in mind that batch and batchTimeout have little effect on kafka streams due to being controlled by kafka configuration, to be more precise
 ```

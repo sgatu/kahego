@@ -78,11 +78,10 @@ func main() {
 	}
 	bucketsWaitGroup := &sync.WaitGroup{}
 	bucketManagerActor := actors.BucketManagerActor{
-		Actor:                &actors.BaseActor{},
-		OrderedMessagesActor: &actors.BaseOrderedMessagesActor{},
-		WaitableActor:        &actors.BaseWaitableActor{WaitGroup: bucketsWaitGroup},
-		BucketsConfig:        bucketsConfig.Buckets,
-		DefaultBucketConfig:  bucketsConfig.DefaultBucket,
+		Actor:               &actors.BaseActor{},
+		WaitableActor:       &actors.BaseWaitableActor{WaitGroup: bucketsWaitGroup},
+		BucketsConfig:       bucketsConfig.Buckets,
+		DefaultBucketConfig: bucketsConfig.DefaultBucket,
 	}
 	actors.InitializeAndStart(&bucketManagerActor)
 
@@ -92,9 +91,8 @@ func main() {
 		WaitableActor: &actors.BaseWaitableActor{
 			WaitGroup: wgListener,
 		},
-		OrderedMessagesActor: &actors.BaseOrderedMessagesActor{},
-		SocketPath:           envConfig.SocketPath,
-		BucketMangerActor:    &bucketManagerActor,
+		SocketPath:        envConfig.SocketPath,
+		BucketMangerActor: &bucketManagerActor,
 	}
 	actors.InitializeAndStart(&listener)
 	closeSignalCh := make(chan os.Signal, 1)

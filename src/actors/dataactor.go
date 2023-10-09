@@ -15,7 +15,6 @@ type DataActor struct {
 	Actor
 	SupervisedActor
 	WaitableActor
-	OrderedMessagesActor
 
 	BucketId     string
 	StreamConfig config.StreamConfig

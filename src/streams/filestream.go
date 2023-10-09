@@ -123,7 +123,7 @@ func (stream *FileStream) flush() error {
 		}
 		node, err := stream.queue.Pop()
 		if err == nil {
-			serializedData := node.Value.Serialize()
+			serializedData := node.Value.Serialize(true)
 			if _, err := stream.file.Write(serializedData); err != nil {
 				stream.file.Sync()
 				return err

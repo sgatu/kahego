@@ -34,7 +34,7 @@ func GetMessage(msg []byte) (*Message, error) {
 	}
 	var key string = ""
 	if keyLen > 0 {
-		key = string(msg[buckNameLen+1 : buckNameLen+keyLen+2])
+		key = string(msg[buckNameLen+2 : buckNameLen+keyLen+2])
 	}
 	data := msg[buckNameLen+keyLen+2:]
 	return &Message{
@@ -44,10 +44,15 @@ func GetMessage(msg []byte) (*Message, error) {
 	}, nil
 }
 
-func (msg *Message) Serialize() []byte {
+func (msg *Message) Serialize(includeLen bool) []byte {
 	totalLen := len(msg.Data) + len(msg.Key) + len(msg.Bucket) + 2
-	data := make([]byte, 0, 4+totalLen)
-	data = binary.LittleEndian.AppendUint32(data, uint32(totalLen))
+	var data []byte
+	if includeLen {
+		data = make([]byte, 0, 4+totalLen)
+		data = binary.LittleEndian.AppendUint32(data, uint32(totalLen))
+	} else {
+		data = make([]byte, 0, totalLen)
+	}
 	data = append(data, byte(len(msg.Bucket)))
 	data = append(data, []byte(msg.Bucket)...)
 	data = append(data, byte(len(msg.Key)))

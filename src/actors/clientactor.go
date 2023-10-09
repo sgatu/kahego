@@ -13,7 +13,6 @@ type ClientHandlerActor struct {
 	Actor
 	WaitableActor
 	SupervisedActor
-	OrderedMessagesActor
 	client            net.Conn
 	bucketMangerActor Actor
 }

@@ -9,6 +9,13 @@ import (
 	"sgatu.com/kahego/src/streams"
 )
 
+type NewClient struct {
+	Conn net.Conn
+}
+type ClientHandleNextMessage struct{}
+type ClientClosedMessage struct {
+	Id string
+}
 type ClientHandlerActor struct {
 	Actor
 	WaitableActor
@@ -51,8 +58,6 @@ func (cha *ClientHandlerActor) DoWork(message interface{}) (WorkResult, error) {
 			fmt.Println(err)
 		}
 		Tell(cha, message)
-	case PoisonPill:
-		return Stop, nil
 	default:
 		log.Tracef("Unknown message received %T by ClientHandlerActor", message)
 	}

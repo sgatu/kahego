@@ -20,6 +20,7 @@ type IllChildMessage struct {
 	Id    string
 	Error error
 }
+type PoisonPill struct{}
 type DoWorkMethod func(msg interface{}) (WorkResult, error)
 type Actor interface {
 	Init()
@@ -118,7 +119,13 @@ func InitializeAndStart(actor Actor) error {
 
 		for {
 			message := <-actor.GetChannel()
-			result, err := actor.GetWorkMethod()(message)
+			var result WorkResult
+			var err error
+			if _, ok := message.(PoisonPill); ok {
+				result, err = Stop, nil
+			} else {
+				result, err = actor.GetWorkMethod()(message)
+			}
 			if result == Stop {
 				if err != nil {
 					if sa, ok := actor.(SupervisedActor); ok {

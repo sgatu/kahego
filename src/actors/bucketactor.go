@@ -92,8 +92,6 @@ func (ba *BucketActor) DoWork(msg interface{}) (WorkResult, error) {
 	case IllChildMessage:
 		log.Warnf("DataActor is dead due to: %s", msg.Error)
 		ba.removeDataActor(msg.Id)
-	case PoisonPill:
-		return Stop, nil
 	default:
 		log.Tracef("Bucket actor received invalid message %T", msg)
 	}

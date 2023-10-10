@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+type AcceptNextConnectionMessage struct{}
+
 type AcceptClientActor struct {
 	Actor
 	WaitableActor
@@ -83,8 +85,6 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 	case ClientClosedMessage:
 		delete(aca.clients, msg.Id)
 		return Continue, nil
-	case PoisonPill:
-		return Stop, nil
 	default:
 		fmt.Println("Unknown message received by AcceptClientActor")
 		return Continue, nil

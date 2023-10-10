@@ -64,8 +64,6 @@ func (bda *backupDataActor) DoWork(msg interface{}) (WorkResult, error) {
 		if err != nil {
 			return Stop, err
 		}
-	case PoisonPill:
-		return Stop, nil
 	default:
 		log.Tracef("Unknown message %T for backupDataActor", msg)
 	}

@@ -96,8 +96,6 @@ func (da *DataActor) NormalMode(msg interface{}) (WorkResult, error) {
 				da.transform(ErrorWorkinMode, errB)
 			}
 		}
-	case PoisonPill:
-		return Stop, nil
 	default:
 		log.Tracef("Unknown message %T for DataActor | NormalMode", msg)
 	}
@@ -113,8 +111,6 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 		Tell(da.backupActor, msg)
 	case FlushDataMessage:
 		Tell(da.backupActor, FlushDataMessage{})
-	case PoisonPill:
-		return Stop, nil
 	case ReviewStream:
 		if da.initializeStream() == nil {
 			da.transform(NormalWorkingMode, nil)
@@ -131,12 +127,7 @@ func (da *DataActor) BackupMode(msg interface{}) (WorkResult, error) {
 }
 
 func (da *DataActor) ErrorMode(msg interface{}) (WorkResult, error) {
-	switch msg := msg.(type) {
-	case PoisonPill:
-		return Stop, nil
-	default:
-		log.Tracef("Unknown message %T for DataActor | ErrorMode", msg)
-	}
+	//PoisonPill is managed globably
 	return Continue, nil
 }
 

@@ -6,7 +6,7 @@ require github.com/joho/godotenv v1.5.1
 
 require github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
 
-require github.com/sgatu/go-simple-linked-list v1.0.3
+require github.com/sgatu/go-simple-linked-list v1.0.4
 
 require (
 	github.com/confluentinc/confluent-kafka-go v1.9.2

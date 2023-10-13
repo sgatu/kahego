@@ -112,6 +112,10 @@ github.com/sgatu/go-simple-linked-list v1.0.3 h1:tG3kh2m+KuAheoH0su9FZccyVBCRMRM
 github.com/sgatu/go-simple-linked-list v1.0.3/go.mod h1:FMFqNjWv3qVFWKbP5N2BTyBxVq1eDXSHTU5ezRk8LGA=
 github.com/sgatu/go-simple-linked-list v1.0.4 h1:M88Qr80YM4WQ2UBLJ6J0+3H4yE29ZAqLOZhDUvSVkT8=
 github.com/sgatu/go-simple-linked-list v1.0.4/go.mod h1:FMFqNjWv3qVFWKbP5N2BTyBxVq1eDXSHTU5ezRk8LGA=
+github.com/sgatu/go-simple-linked-list v1.0.5 h1:ZstZfc3W7EZhk3FdzIHaWPi5CxySAFS4MfjSJHYBG04=
+github.com/sgatu/go-simple-linked-list v1.0.5/go.mod h1:FMFqNjWv3qVFWKbP5N2BTyBxVq1eDXSHTU5ezRk8LGA=
+github.com/sgatu/go-simple-linked-list v1.0.6 h1:gJkVsXJSyydMPN5WfHYsXrNJ30eWi8+OrAM5IhFE0x0=
+github.com/sgatu/go-simple-linked-list v1.0.6/go.mod h1:FMFqNjWv3qVFWKbP5N2BTyBxVq1eDXSHTU5ezRk8LGA=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=

@@ -13,9 +13,9 @@ import (
 	"unicode"
 
 	"github.com/inhies/go-bytesize"
+	linkedlist "github.com/sgatu/go-simple-linked-list"
 	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/datastructures"
 )
 
 /*
@@ -26,8 +26,8 @@ type FileStream struct {
 	fileNameTemplate string
 	bucketId         string
 	file             *os.File
-	queue            datastructures.Queue[*Message]
-	filesPaths       datastructures.Queue[string]
+	queue            linkedlist.LinkedList[*Message]
+	filesPaths       linkedlist.LinkedList[string]
 	writtenBytes     int32
 	rotateLength     int32
 	maxFiles         uint32
@@ -105,7 +105,7 @@ func (stream *FileStream) rotateFile() error {
 		}
 		for stream.filesPaths.Len() >= stream.maxFiles {
 			path, _ := stream.filesPaths.Pop()
-			os.Remove(path.Value)
+			os.Remove(path)
 		}
 		filePath, fileName := stream.getNextFileName()
 		os.MkdirAll(filePath, 0777)
@@ -133,7 +133,7 @@ func (stream *FileStream) flush() error {
 		}
 		node, err := stream.queue.Pop()
 		if err == nil {
-			serializedData := node.Value.Serialize(true)
+			serializedData := (*node).Serialize(true)
 			if _, err := stream.file.Write(serializedData); err != nil {
 				stream.file.Sync()
 				return err
@@ -207,7 +207,7 @@ func (stream *FileStream) GetError() error {
 	return stream.lastErr
 }
 
-func (stream *FileStream) GetQueue() *datastructures.Queue[*Message] {
+func (stream *FileStream) GetQueue() *linkedlist.LinkedList[*Message] {
 	return &stream.queue
 }
 
@@ -263,8 +263,8 @@ func getFileStream(streamConfig config.StreamConfig, bucket string) (*FileStream
 		fileNameTemplate: fileNameTemplate,
 		bucketId:         bucket,
 		maxFiles:         maxFiles,
-		queue:            datastructures.NewQueue[*Message](),
-		filesPaths:       datastructures.NewQueue[string](),
+		queue:            linkedlist.LinkedList[*Message]{},
+		filesPaths:       linkedlist.LinkedList[string]{},
 	}
 	return fs, nil
 }

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	linkedlist "github.com/sgatu/go-simple-linked-list"
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/datastructures"
 )
 
 type Message struct {
@@ -69,7 +69,7 @@ type Stream interface {
 	Len() uint32
 	Flush() error
 	Close() error
-	GetQueue() *datastructures.Queue[*Message]
+	GetQueue() *linkedlist.LinkedList[*Message]
 }
 
 func GetStream(streamConfig config.StreamConfig, bucket string) (Stream, error) {

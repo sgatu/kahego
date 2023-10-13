@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	linkedlist "github.com/sgatu/go-simple-linked-list"
 	log "github.com/sirupsen/logrus"
 	"sgatu.com/kahego/src/config"
-	"sgatu.com/kahego/src/datastructures"
 )
 
 type KafkaErrorType string
@@ -36,7 +36,7 @@ func (kse *KafkaStreamError) GetType() KafkaErrorType {
 type KafkaStream struct {
 	kafkaConn    *kafka.Producer
 	kafkaConfig  *kafka.ConfigMap
-	queue        datastructures.Queue[*Message]
+	queue        linkedlist.LinkedList[*Message]
 	topic        string
 	deliveryChan chan kafka.Event
 	lastErr      *KafkaStreamError
@@ -167,7 +167,7 @@ func (stream *KafkaStream) Init() error {
 	return nil
 }
 
-func (stream *KafkaStream) GetQueue() *datastructures.Queue[*Message] {
+func (stream *KafkaStream) GetQueue() *linkedlist.LinkedList[*Message] {
 	return &stream.queue
 }
 func (stream *KafkaStream) GetError() error {

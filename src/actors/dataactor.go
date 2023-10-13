@@ -166,7 +166,7 @@ func (da *DataActor) transform(mode WorkingMode, err error) error {
 				len := da.stream.GetQueue().Len()
 				for i := 0; i < int(len); i++ {
 					if val, err := da.stream.GetQueue().Pop(); err != nil {
-						Tell(da.backupActor, val.Value)
+						Tell(da.backupActor, val)
 					}
 				}
 				da.stream.GetQueue().Clear()

@@ -115,3 +115,7 @@ You can see an example in the test.php under clients folder.
 
 Code is structured under a custom made actor system that allows for paralelization and concurrent execution of all the required work, like listening to new clients, dealing with each connected client, batching the messages, writing to files or kafka etc...
 ![Actors Diagram](actors_diagram.png)
+
+
+#### 6. Contributing
+If you'd like to contribute to Kahego, you can fork the repository and submit a pull request. contributions are welcome, whether they are bug fixes, improvements to the code, or new features.

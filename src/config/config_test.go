@@ -73,7 +73,7 @@ func Test_good_config(t *testing.T) {
 					"path":"/tmp",
 					"sizeRotate":"100MB",
 					"fileNameTemplate":"{bucket}",
-					"maxFiles": 10
+					"maxFiles": "10"
 				}
 			}
 		},

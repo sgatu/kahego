@@ -189,7 +189,10 @@ func getKafkaStream(streamConfig config.StreamConfig, bucketName string) (*Kafka
 	configsParsed := kafka.StringMapToConfigEntries(streamConfig.Settings, kafka.AlterOperationSet)
 	cfgMap := kafka.ConfigMap{}
 	for _, cfg := range configsParsed {
-		cfgMap.SetKey(cfg.Name, cfg.Value)
+		err := cfgMap.SetKey(cfg.Name, cfg.Value)
+		if err != nil {
+			log.Warnf("Could not set kafka config %s = %s, err: %s", cfg.Name, cfg.Value, err)
+		}
 	}
 	stream := KafkaStream{kafkaConfig: &cfgMap, topic: bucketName}
 	return &stream, nil

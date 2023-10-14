@@ -99,7 +99,10 @@ func LoadBucketsConfigFromString(ConfigStr string) (*MappedConfig, error) {
 
 	configFile := strings.NewReader(ConfigStr)
 	jsonParser := json.NewDecoder(configFile)
-	jsonParser.Decode(&bucketsConfig)
+	err := jsonParser.Decode(&bucketsConfig)
+	if err != nil {
+		return nil, err
+	}
 	if len(bucketsConfig.Streams) == 0 {
 		return nil, fmt.Errorf("no streams defined")
 	}

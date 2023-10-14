@@ -15,6 +15,7 @@ type AcceptClientActor struct {
 	Actor
 	WaitableActor
 	BucketMangerActor Actor
+	ListenerErrorChan chan struct{}
 	SocketPath        string
 	socket            *net.UnixListener
 	clientIdCounter   int
@@ -51,7 +52,11 @@ func (aca *AcceptClientActor) OnStop() error {
 func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 	switch msg := message.(type) {
 	case AcceptNextConnectionMessage:
-		aca.socket.SetDeadline(time.Now().Add(1 * time.Second))
+		err := aca.socket.SetDeadline(time.Now().Add(1 * time.Second))
+		if err != nil {
+			close(aca.ListenerErrorChan)
+			return Stop, nil
+		}
 		conn, err := aca.socket.Accept()
 
 		if err == nil {
@@ -80,6 +85,7 @@ func (aca *AcceptClientActor) DoWork(message interface{}) (WorkResult, error) {
 					return Continue, nil
 				}
 			}
+			close(aca.ListenerErrorChan)
 			return Stop, nil
 		}
 	case ClientClosedMessage:

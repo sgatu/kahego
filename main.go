@@ -82,8 +82,12 @@ func main() {
 		BucketsConfig:       bucketsConfig.Buckets,
 		DefaultBucketConfig: bucketsConfig.DefaultBucket,
 	}
-	actors.InitializeAndStart(&bucketManagerActor)
+	errBucket := actors.InitializeAndStart(&bucketManagerActor)
+	if errBucket != nil {
+		log.Fatalf("Could not start bucket manager, closing application. err: %s", errBucket)
+	}
 
+	listenerErrorChan := make(chan struct{})
 	wgListener := &sync.WaitGroup{}
 	listener := actors.AcceptClientActor{
 		Actor: &actors.BaseActor{},
@@ -92,8 +96,12 @@ func main() {
 		},
 		SocketPath:        envConfig.SocketPath,
 		BucketMangerActor: &bucketManagerActor,
+		ListenerErrorChan: listenerErrorChan,
 	}
-	actors.InitializeAndStart(&listener)
+	errListener := actors.InitializeAndStart(&listener)
+	if errListener != nil {
+		log.Fatalf("Could not start listener actor, closing application. err: %s", errListener)
+	}
 	closeSignalCh := make(chan os.Signal, 1)
 
 	signal.Notify(closeSignalCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGPIPE)
@@ -102,9 +110,12 @@ func main() {
 		actors.Tell(&listener, actors.PoisonPill{})
 	}
 
-	<-closeSignalCh
-	closeAll()
-
+	select {
+	case <-closeSignalCh:
+		closeAll()
+	case <-listenerErrorChan:
+		closeAll()
+	}
 	log.Info("Waiting listener to close")
 	wgListener.Wait()
 	log.Info("Waiting buckets to close")

@@ -22,7 +22,7 @@ func (dbma *BucketManagerActor) getBucket(bucket string) (Actor, error) {
 	if bucket, ok := dbma.bucketActors[bucket]; ok {
 		return bucket, nil
 	}
-	var config *config.BucketConfig = nil
+	var config *config.BucketConfig
 	if bucketConfig, ok := dbma.BucketsConfig[bucket]; ok {
 		config = bucketConfig
 	} else {

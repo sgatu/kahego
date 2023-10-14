@@ -49,10 +49,10 @@ func (da *DataActor) OnStart() error {
 	if err != nil {
 		errB := da.transform(BackupWorkingMode, nil)
 		if errB != nil {
-			da.transform(ErrorWorkinMode, errB)
+			_ = da.transform(ErrorWorkinMode, errB)
 		}
 	} else {
-		da.transform(NormalWorkingMode, nil)
+		_ = da.transform(NormalWorkingMode, nil)
 	}
 	return nil
 }

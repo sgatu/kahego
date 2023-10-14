@@ -100,15 +100,19 @@ func (stream *FileStream) rotateFile() error {
 	if stream.writtenBytes >= stream.rotateLength || stream.file == nil {
 		stream.writtenBytes = 0
 		if stream.file != nil {
-			stream.file.Sync()
-			stream.file.Close()
+			_ = stream.file.Sync()
+			_ = stream.file.Close()
 		}
 		for stream.filesPaths.Len() >= stream.maxFiles {
 			path, _ := stream.filesPaths.Pop()
 			os.Remove(path)
 		}
 		filePath, fileName := stream.getNextFileName()
-		os.MkdirAll(filePath, 0777)
+		err := os.MkdirAll(filePath, 0777)
+		if err != nil {
+			stream.lastErr = err
+			return err
+		}
 		fullPath := filePath + string(os.PathSeparator) + fileName
 		stream.filesPaths.Push(fullPath)
 		file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -135,7 +139,7 @@ func (stream *FileStream) flush() error {
 		if err == nil {
 			serializedData := (*node).Serialize(true)
 			if _, err := stream.file.Write(serializedData); err != nil {
-				stream.file.Sync()
+				_ = stream.file.Sync()
 				return err
 			}
 			stream.writtenBytes += int32(len(serializedData))
@@ -191,7 +195,7 @@ func (stream *FileStream) recoverExistingFiles() error {
 
 func (stream *FileStream) Init() error {
 	stream.lastErr = nil
-	stream.recoverExistingFiles()
+	_ = stream.recoverExistingFiles()
 	err := stream.rotateFile()
 	if err != nil {
 		return err
